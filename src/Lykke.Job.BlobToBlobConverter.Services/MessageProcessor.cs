@@ -306,8 +306,18 @@ namespace Lykke.Job.BlobToBlobConverter.Services
                 if (property.PropertyType.IsClass
                     && property.PropertyType != typeof(string))
                 {
-                    if (!property.PropertyType.IsArray && !typeof(IEnumerable).IsAssignableFrom(property.PropertyType))
+                    if (property.PropertyType.IsArray)
+                    {
+                        notSimpleProperties.Add(property.PropertyType.GetElementType());
+                    }
+                    else if (property.PropertyType.IsGenericType && property.PropertyType.GetGenericTypeDefinition() == typeof(List<>))
+                    {
+                        notSimpleProperties.Add(property.PropertyType.GetGenericArguments()[0]);
+                    }
+                    else
+                    {
                         notSimpleProperties.Add(property.PropertyType);
+                    }
                     childrenEntityProperties.Add(property);
                 }
                 else
