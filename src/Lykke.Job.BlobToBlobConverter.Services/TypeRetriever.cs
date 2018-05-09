@@ -16,7 +16,7 @@ namespace Lykke.Job.BlobToBlobConverter.Services
 {
     public partial class TypeRetriever : ITypeRetriever
     {
-        private const string _downloadDirectory = "libs";
+        private const string _libsDir = "libs";
         private const string _dllExtension = ".dll";
 
         private readonly PackageMetadataResource _packageMetadataResource;
@@ -24,6 +24,7 @@ namespace Lykke.Job.BlobToBlobConverter.Services
         private readonly PackageDownloadContext _packageDownloadContext;
         private readonly SourceCacheContext _sourceCacheContext;
         private readonly NugetLogger _nugetLogger;
+        private readonly string _downloadDirectory;
 
         public TypeRetriever(ILog log)
         {
@@ -34,6 +35,8 @@ namespace Lykke.Job.BlobToBlobConverter.Services
             _packageMetadataResource = sourceRepository.GetResource<PackageMetadataResource>();
             _downloadResource = sourceRepository.GetResource<DownloadResource>();
 
+            string workingDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+            _downloadDirectory = Path.Combine(workingDir, _libsDir);
             _sourceCacheContext = new SourceCacheContext
             {
                 NoCache = true,

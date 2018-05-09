@@ -69,7 +69,6 @@ namespace Lykke.Job.BlobToBlobConverter.Services
 
             AddStructureLevel(
                 _type,
-                null,
                 false,
                 null,
                 result);
@@ -125,7 +124,6 @@ namespace Lykke.Job.BlobToBlobConverter.Services
 
             AddValueLevel(
                 obj,
-                null,
                 null,
                 null);
         }
@@ -186,7 +184,6 @@ namespace Lykke.Job.BlobToBlobConverter.Services
 
         private void AddValueLevel(
             object obj,
-            string parentLevel,
             string parentId,
             string parentTypeName)
         {
@@ -194,10 +191,6 @@ namespace Lykke.Job.BlobToBlobConverter.Services
                 return;
 
             Type type = obj.GetType();
-
-            string level = _objectData.ContainsKey(type.Name)
-                ? $"{parentLevel}-{type.Name}"
-                : type.Name;
 
             StringBuilder sb = new StringBuilder();
 
@@ -237,10 +230,10 @@ namespace Lykke.Job.BlobToBlobConverter.Services
                 sb.Append(strValue);
             }
 
-            if (_objectData.ContainsKey(level))
-                _objectData[level].Add(sb.ToString());
+            if (_objectData.ContainsKey(type.Name))
+                _objectData[type.Name].Add(sb.ToString());
             else
-                _objectData.Add(level, new List<string> { sb.ToString() });
+                _objectData.Add(type.Name, new List<string> { sb.ToString() });
 
             foreach (var childrenEntityProperty in childrenEntityProperties)
             {
@@ -252,7 +245,6 @@ namespace Lykke.Job.BlobToBlobConverter.Services
                     {
                         AddValueLevel(
                             value,
-                            level,
                             id,
                             type.Name);
                     }
@@ -261,7 +253,6 @@ namespace Lykke.Job.BlobToBlobConverter.Services
                 {
                     AddValueLevel(
                         value,
-                        level,
                         id,
                         type.Name);
                 }
@@ -270,15 +261,10 @@ namespace Lykke.Job.BlobToBlobConverter.Services
 
         private void AddStructureLevel(
             Type type,
-            string parentLevel,
             bool parentHasId,
             string parentTypeName,
             Dictionary<string, string> dictionary)
         {
-            string level = dictionary.ContainsKey(type.Name)
-                ? $"{parentTypeName}-{type.Name}"
-                : type.Name;
-
             StringBuilder sb = new StringBuilder();
 
             if (parentHasId && parentTypeName != null)
@@ -332,13 +318,12 @@ namespace Lykke.Job.BlobToBlobConverter.Services
             if (!_propertiesMap.ContainsKey(type))
                 _propertiesMap.Add(type, (valueProperties, childrenEntityProperties));
 
-            dictionary.Add(level, sb.ToString());
+            dictionary.Add(type.Name, sb.ToString());
 
             foreach (var notSimpleType in notSimpleProperties)
             {
                 AddStructureLevel(
                     notSimpleType,
-                    level,
                     hasId,
                     type.Name,
                     dictionary);
