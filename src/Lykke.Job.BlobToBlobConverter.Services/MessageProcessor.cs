@@ -9,6 +9,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
@@ -29,7 +30,8 @@ namespace Lykke.Job.BlobToBlobConverter.Services
             {
                 DateTimeZoneHandling = DateTimeZoneHandling.Utc
             });
-        private readonly Dictionary<Type, (List<PropertyInfo>, List<PropertyInfo>)> _propertiesMap = new Dictionary<Type, (List<PropertyInfo>, List<PropertyInfo>)>();
+        private readonly Dictionary<Type, (List<PropertyInfo>, List<PropertyInfo>, List<PropertyInfo>)> _propertiesMap
+            = new Dictionary<Type, (List<PropertyInfo>, List<PropertyInfo>, List<PropertyInfo>)>();
         private readonly MethodInfo _isValidMethod;
 
         private bool? _deserializeMethod;
@@ -88,18 +90,14 @@ namespace Lykke.Job.BlobToBlobConverter.Services
             if (!result)
                 return false;
 
-            var items = obj as IEnumerable;
-            if (items != null)
+            if (_isValidMethod != null)
             {
-                foreach (var item in items)
-                {
-                    ProcessTypeItem(item);
-                }
+                bool isValid = (bool)_isValidMethod.Invoke(obj, null);
+                if (!isValid)
+                    _log.WriteWarning(nameof(MessageProcessor), nameof(TryProcessMessage), $"{_type.FullName} {obj.ToJson()} is invalid!");
             }
-            else
-            {
-                ProcessTypeItem(obj);
-            }
+
+            ProcessTypeItem(obj, null, null);
 
             return true;
         }
@@ -113,19 +111,31 @@ namespace Lykke.Job.BlobToBlobConverter.Services
             }
         }
 
-        private void ProcessTypeItem(object obj)
+        private string ProcessTypeItem(
+            object obj,
+            string parentId,
+            string parentTypeName)
         {
-            if (_isValidMethod != null)
+            string result = null;
+            var items = obj as IEnumerable;
+            if (items != null)
             {
-                bool isValid = (bool)_isValidMethod.Invoke(obj, null);
-                if (!isValid)
-                    _log.WriteWarning(nameof(MessageProcessor), nameof(TryProcessMessage), $"{_type.FullName} {obj.ToJson()} is invalid!");
+                foreach (var item in items)
+                {
+                    result = AddValueLevel(
+                        item,
+                        parentId,
+                        parentTypeName);
+                }
             }
-
-            AddValueLevel(
-                obj,
-                null,
-                null);
+            else
+            {
+                result = AddValueLevel(
+                    obj,
+                    parentId,
+                    parentTypeName);
+            }
+            return result;
         }
 
         private bool TryDeserialize(byte[] data, out object result)
@@ -182,152 +192,200 @@ namespace Lykke.Job.BlobToBlobConverter.Services
             }
         }
 
-        private void AddValueLevel(
+        private string AddValueLevel(
             object obj,
             string parentId,
             string parentTypeName)
         {
             if (obj == null)
-                return;
+                return null;
 
             Type type = obj.GetType();
+            string typeName = type.Name;
 
-            StringBuilder sb = new StringBuilder();
+            var idPropertyName = _idPropertiesMap.ContainsKey(typeName) ? _idPropertiesMap[typeName] : null;
+            (var valueProperties, var oneToOneChildrenProperties, var oneToManyChildrenProperties) = _propertiesMap[type];
 
             string id = null;
-            var idPropertyName = _idPropertiesMap.ContainsKey(type.Name) ? _idPropertiesMap[type.Name] : null;
-            (var valueProperties, var childrenEntityProperties) = _propertiesMap[type];
-
-            if (parentId != null && parentTypeName != null)
+            if (valueProperties.Count > 0)
             {
-                var parentIdPropertyName = $"{parentTypeName}{_idPropertyName}";
-                var parentIdProperty = valueProperties.Find(v => v.Name == parentIdPropertyName);
-                if (parentIdProperty == null)
+                StringBuilder sb = new StringBuilder();
+                for (int i = 0; i < valueProperties.Count; ++i)
                 {
-                    sb.Append(parentId);
-                    sb.Append(',');
-                }
-            }
-
-            for (int i = 0; i < valueProperties.Count; ++i)
-            {
-                var valueProperty = valueProperties[i];
-                if (i > 0)
-                    sb.Append(',');
-                object value = valueProperty.GetValue(obj);
-                if (valueProperty.Name == _idPropertyName || valueProperty.Name == idPropertyName)
-                    id = value.ToString();
-                string strValue = string.Empty;
-                if (value != null)
-                {
-                    if (valueProperty.PropertyType == typeof(DateTime))
-                        strValue = DateTimeConverter.Convert((DateTime)value);
-                    else if (valueProperty.PropertyType == typeof(DateTime?))
-                        strValue = DateTimeConverter.Convert(((DateTime?)value).Value);
-                    else
-                        strValue = value.ToString();
-                }
-                sb.Append(strValue);
-            }
-
-            if (_objectData.ContainsKey(type.Name))
-                _objectData[type.Name].Add(sb.ToString());
-            else
-                _objectData.Add(type.Name, new List<string> { sb.ToString() });
-
-            foreach (var childrenEntityProperty in childrenEntityProperties)
-            {
-                object value = childrenEntityProperty.GetValue(obj);
-                var items = value as IEnumerable;
-                if (items != null)
-                {
-                    foreach (var item in items)
+                    var valueProperty = valueProperties[i];
+                    object value = valueProperty.GetValue(obj);
+                    if (valueProperty.Name == _idPropertyName || valueProperty.Name == idPropertyName)
                     {
-                        AddValueLevel(
-                            value,
-                            id,
-                            type.Name);
+                        id = value.ToString();
+                    }
+                    else
+                    {
+                        string strValue = string.Empty;
+                        if (value != null)
+                        {
+                            if (valueProperty.PropertyType == typeof(DateTime))
+                                strValue = DateTimeConverter.Convert((DateTime)value);
+                            else if (valueProperty.PropertyType == typeof(DateTime?))
+                                strValue = DateTimeConverter.Convert(((DateTime?)value).Value);
+                            else
+                                strValue = value.ToString();
+                        }
+                        if (sb.Length > 0)
+                            sb.Append(',');
+                        sb.Append(strValue);
                     }
                 }
-                else if (value != null)
+
+                if (parentId != null)
+                    sb.Insert(0, $"{parentId},");
+                if (id != null)
+                    sb.Insert(0, $"{id},");
+
+                if (_objectData.ContainsKey(typeName))
+                    _objectData[typeName].Add(sb.ToString());
+                else
+                    _objectData.Add(typeName, new List<string> { sb.ToString() });
+            }
+
+            string childId = null;
+            foreach (var childrenEntityProperty in oneToOneChildrenProperties)
+            {
+                object value = childrenEntityProperty.GetValue(obj);
+                if (value == null)
+                    continue;
+
+                childId = ProcessTypeItem(
+                    value,
+                    id,
+                    typeName);
+            }
+
+            if (oneToOneChildrenProperties.Count == 1 && childId != null)
+                id = childId;
+
+            foreach (var childrenEntityProperty in oneToManyChildrenProperties)
+            {
+                object value = childrenEntityProperty.GetValue(obj);
+                if (value == null)
+                    continue;
+
+                var items = value as IEnumerable;
+                if (items == null)
+                    throw new InvalidOperationException($"Couldn't cast value '{value}' of property {childrenEntityProperty.Name} from {typeName} to IEnumerable");
+                foreach (var item in items)
                 {
-                    AddValueLevel(
-                        value,
+                    ProcessTypeItem(
+                        item,
                         id,
-                        type.Name);
+                        typeName);
                 }
             }
+
+            return id;
         }
 
-        private void AddStructureLevel(
+        private bool AddStructureLevel(
             Type type,
             bool parentHasId,
             string parentTypeName,
             Dictionary<string, string> dictionary)
         {
+            string typeName = type.Name;
+
             StringBuilder sb = new StringBuilder();
 
-            if (parentHasId && parentTypeName != null)
-            {
-                var parentIdPropertyName = $"{parentTypeName}{_idPropertyName}";
-                var parentIdProperty = type.GetProperty(parentIdPropertyName);
-                if (parentIdProperty == null)
-                    sb.Append(parentIdPropertyName);
-            }
-
-            var excludedProperties = _excludedPropertiesMap.ContainsKey(type.Name) ? _excludedPropertiesMap[type.Name] : new List<string>(0);
-            var idPropertyName = _idPropertiesMap.ContainsKey(type.Name) ? _idPropertiesMap[type.Name] : null;
+            var excludedProperties = _excludedPropertiesMap.ContainsKey(typeName) ? _excludedPropertiesMap[typeName] : new List<string>(0);
+            var idPropertyName = _idPropertiesMap.ContainsKey(typeName) ? _idPropertiesMap[typeName] : null;
             bool hasId = false;
             var valueProperties = new List<PropertyInfo>();
-            var childrenEntityProperties = new List<PropertyInfo>();
-            var notSimpleProperties = new List<Type>();
+            var oneToOneChildrenProperties = new List<(PropertyInfo, Type)>();
+            var oneToManyChildrenProperties = new List<(PropertyInfo, Type)>();
             var topLevelProperties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
             foreach (var property in topLevelProperties)
             {
                 if (excludedProperties.Contains(property.Name))
                     continue;
 
-                if (!hasId && (property.Name == _idPropertyName || property.Name == idPropertyName))
-                    hasId = true;
-                if (property.PropertyType.IsClass
-                    && property.PropertyType != typeof(string))
+                if (property.PropertyType.IsClass && property.PropertyType != typeof(string))
                 {
                     if (property.PropertyType.IsArray)
-                    {
-                        notSimpleProperties.Add(property.PropertyType.GetElementType());
-                    }
+                        oneToManyChildrenProperties.Add((property, property.PropertyType.GetElementType()));
                     else if (property.PropertyType.IsGenericType && property.PropertyType.GetGenericTypeDefinition() == typeof(List<>))
-                    {
-                        notSimpleProperties.Add(property.PropertyType.GetGenericArguments()[0]);
-                    }
+                        oneToManyChildrenProperties.Add((property, property.PropertyType.GetGenericArguments()[0]));
                     else
-                    {
-                        notSimpleProperties.Add(property.PropertyType);
-                    }
-                    childrenEntityProperties.Add(property);
+                        oneToOneChildrenProperties.Add((property, property.PropertyType));
                 }
                 else
                 {
-                    if (sb.Length > 0)
-                        sb.Append(',');
-                    sb.Append(property.Name);
+                    if (!hasId && (property.Name == _idPropertyName || property.Name == idPropertyName))
+                    {
+                        hasId = true;
+                    }
+                    else
+                    {
+                        if (sb.Length > 0)
+                            sb.Append(',');
+                        sb.Append(property.Name);
+                    }
                     valueProperties.Add(property);
                 }
             }
 
-            if (!_propertiesMap.ContainsKey(type))
-                _propertiesMap.Add(type, (valueProperties, childrenEntityProperties));
+            if (_propertiesMap.ContainsKey(type))
+                throw new InvalidOperationException($"Type {typeName} is found more than once");
 
-            dictionary.Add(type.Name, sb.ToString());
+            _propertiesMap.Add(
+                type,
+                (
+                    valueProperties,
+                    oneToOneChildrenProperties.Select(i => i.Item1).ToList(),
+                    oneToManyChildrenProperties.Select(i => i.Item1).ToList()
+                ));
 
-            foreach (var notSimpleType in notSimpleProperties)
+            if (sb.Length > 0)
             {
-                AddStructureLevel(
-                    notSimpleType,
+                if (parentHasId && parentTypeName != null)
+                {
+                    var parentIdPropertyName = $"{parentTypeName}{_idPropertyName}";
+                    var parentIdProperty = type.GetProperty(parentIdPropertyName);
+                    if (parentIdProperty == null)
+                        sb.Insert(0, $"{parentIdPropertyName},");
+                }
+                if (hasId)
+                    sb.Insert(0, $"{_idPropertyName},");
+                dictionary.Add(typeName, sb.ToString());
+            }
+
+            if (valueProperties.Count == 0)
+            {
+                hasId = parentHasId;
+                typeName = parentTypeName;
+            }
+
+            bool childHasId = false;
+            foreach (var childTypePair in oneToOneChildrenProperties)
+            {
+                childHasId = AddStructureLevel(
+                    childTypePair.Item2,
                     hasId,
-                    type.Name,
+                    typeName,
                     dictionary);
             }
+
+            if (oneToOneChildrenProperties.Count == 1 && childHasId)
+                typeName = oneToOneChildrenProperties[0].Item2.Name;
+            else
+                childHasId = hasId;
+            foreach (var childTypePair in oneToManyChildrenProperties)
+            {
+                AddStructureLevel(
+                    childTypePair.Item2,
+                    childHasId,
+                    typeName,
+                    dictionary);
+            }
+
+            return hasId;
         }
     }
 }
