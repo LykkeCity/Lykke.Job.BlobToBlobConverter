@@ -30,7 +30,7 @@ namespace Lykke.Job.BlobToBlobConverter.Services
         public async Task ProcessAsync()
         {
             var lastBlob = await _blobSaver.GetLastSavedBlobAsync();
-            var blobs = await _blobReader.GetBlobsForConversionAsync(null/*lastBlob*/);
+            var blobs = await _blobReader.GetBlobsForConversionAsync(lastBlob);
             foreach (var blob in blobs)
             {
                 try
