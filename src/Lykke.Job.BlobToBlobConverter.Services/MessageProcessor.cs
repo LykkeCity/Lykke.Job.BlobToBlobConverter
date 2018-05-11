@@ -111,12 +111,12 @@ namespace Lykke.Job.BlobToBlobConverter.Services
             }
         }
 
-        private string ProcessTypeItem(
+        private (string, string) ProcessTypeItem(
             object obj,
             string parentId,
             string parentTypeName)
         {
-            string result = null;
+            (string, string) result = (null, null);
             var items = obj as IEnumerable;
             if (items != null)
             {
@@ -192,13 +192,13 @@ namespace Lykke.Job.BlobToBlobConverter.Services
             }
         }
 
-        private string AddValueLevel(
+        private (string, string) AddValueLevel(
             object obj,
             string parentId,
             string parentTypeName)
         {
             if (obj == null)
-                return null;
+                return (null, null);
 
             Type type = obj.GetType();
             string typeName = type.Name;
@@ -259,20 +259,24 @@ namespace Lykke.Job.BlobToBlobConverter.Services
             }
 
             string childId = null;
+            string childTypeName = null;
             foreach (var childrenEntityProperty in oneToOneChildrenProperties)
             {
                 object value = childrenEntityProperty.GetValue(obj);
                 if (value == null)
                     continue;
 
-                childId = ProcessTypeItem(
+                (childId, childTypeName) = ProcessTypeItem(
                     value,
                     id,
                     typeName);
             }
 
             if (oneToOneChildrenProperties.Count == 1 && childId != null)
+            {
                 id = childId;
+                typeName = childTypeName;
+            }
 
             foreach (var childrenEntityProperty in oneToManyChildrenProperties)
             {
@@ -292,7 +296,7 @@ namespace Lykke.Job.BlobToBlobConverter.Services
                 }
             }
 
-            return id;
+            return (id, typeName);
         }
 
         private bool AddStructureLevel(
