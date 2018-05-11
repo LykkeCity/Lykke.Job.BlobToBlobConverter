@@ -204,12 +204,14 @@ namespace Lykke.Job.BlobToBlobConverter.Services
             string typeName = type.Name;
 
             var idPropertyName = _idPropertiesMap.ContainsKey(typeName) ? _idPropertiesMap[typeName] : null;
+            string parentIdPropertyName = parentTypeName != null ? $"{parentTypeName}{_idPropertyName}" : null;
             (var valueProperties, var oneToOneChildrenProperties, var oneToManyChildrenProperties) = _propertiesMap[type];
 
             string id = null;
             if (valueProperties.Count > 0)
             {
                 StringBuilder sb = new StringBuilder();
+                bool hasParentIdProperty = false;
                 for (int i = 0; i < valueProperties.Count; ++i)
                 {
                     var valueProperty = valueProperties[i];
@@ -232,13 +234,15 @@ namespace Lykke.Job.BlobToBlobConverter.Services
                             else
                                 strValue = value.ToString();
                         }
+                        if (parentIdPropertyName != null && valueProperty.Name == parentIdPropertyName)
+                            hasParentIdProperty = true;
                         if (sb.Length > 0 || i > 0 && (i != 1 || id == null))
                             sb.Append(',');
                         sb.Append(strValue);
                     }
                 }
 
-                if (parentId != null)
+                if (parentId != null && !hasParentIdProperty)
                     sb.Insert(0, $"{parentId},");
                 if (id != null)
                     sb.Insert(0, $"{id},");
@@ -247,6 +251,11 @@ namespace Lykke.Job.BlobToBlobConverter.Services
                     _objectData[typeName].Add(sb.ToString());
                 else
                     _objectData.Add(typeName, new List<string> { sb.ToString() });
+            }
+            else
+            {
+                id = parentId;
+                typeName = parentTypeName;
             }
 
             string childId = null;

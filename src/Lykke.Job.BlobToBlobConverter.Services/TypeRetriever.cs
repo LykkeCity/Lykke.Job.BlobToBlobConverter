@@ -83,6 +83,10 @@ namespace Lykke.Job.BlobToBlobConverter.Services
                 throw new InvalidOperationException($"Dll files not found in {_packageDownloadContext.DirectDownloadDirectory}");
 
             var assembly = Assembly.LoadFile(dllFiles.First());
+            int dotIndex = typeName.IndexOf('.');
+            if (dotIndex == -1)
+                typeName = $"{nugetPackageName}.{typeName}";
+
             var type = assembly.GetType(typeName);
             if (type == null)
                 throw new InvalidOperationException($"Type {typeName} not found among {assembly.ExportedTypes.Select(t => t.FullName).ToList().ToJson()}");
