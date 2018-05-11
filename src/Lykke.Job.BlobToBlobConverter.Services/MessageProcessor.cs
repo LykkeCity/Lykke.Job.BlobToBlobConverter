@@ -216,6 +216,8 @@ namespace Lykke.Job.BlobToBlobConverter.Services
                     object value = valueProperty.GetValue(obj);
                     if (valueProperty.Name == _idPropertyName || valueProperty.Name == idPropertyName)
                     {
+                        if (value == null)
+                            throw new InvalidOperationException($"'{valueProperty.Name}' property can't be null");
                         id = value.ToString();
                     }
                     else
@@ -230,7 +232,7 @@ namespace Lykke.Job.BlobToBlobConverter.Services
                             else
                                 strValue = value.ToString();
                         }
-                        if (sb.Length > 0)
+                        if (sb.Length > 0 || i > 0 && (i != 1 || id == null))
                             sb.Append(',');
                         sb.Append(strValue);
                     }
