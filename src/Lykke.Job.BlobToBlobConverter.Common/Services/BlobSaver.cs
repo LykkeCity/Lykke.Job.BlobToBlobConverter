@@ -9,7 +9,7 @@ using System.IO;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Lykke.Job.BlobToBlobConverter.Services
+namespace Lykke.Job.BlobToBlobConverter.Common.Services
 {
     public class BlobSaver : IBlobSaver
     {

@@ -10,7 +10,7 @@ using System.IO.Compression;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
-namespace Lykke.Job.BlobToBlobConverter.Services
+namespace Lykke.Job.BlobToBlobConverter.Common.Services
 {
     public class BlobReader : IBlobReader
     {

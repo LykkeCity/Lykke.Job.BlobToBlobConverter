@@ -3,7 +3,7 @@ using Lykke.Job.BlobToBlobConverter.Common.Abstractions;
 using System;
 using System.Threading.Tasks;
 
-namespace Lykke.Job.BlobToBlobConverter.Services
+namespace Lykke.Job.BlobToBlobConverter.Common.Services
 {
     public class BlobProcessor : IBlobProcessor
     {

@@ -2,6 +2,7 @@
 using Common.Log;
 using Lykke.Common;
 using Lykke.Job.BlobToBlobConverter.Common.Abstractions;
+using Lykke.Job.BlobToBlobConverter.Common.Services;
 using Lykke.Job.BlobToBlobConverter.Core;
 using Lykke.Job.BlobToBlobConverter.Core.Services;
 using Lykke.Job.BlobToBlobConverter.Services;
