@@ -4,7 +4,6 @@ using Lykke.Job.BlobToBlobConverter.Core;
 using Lykke.Job.BlobToBlobConverter.Core.Services;
 using Lykke.Job.BlobToBlobConverter.Common.Helpers;
 using Lykke.Job.BlobToBlobConverter.Common.Abstractions;
-using MessagePack;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -153,7 +152,7 @@ namespace Lykke.Job.BlobToBlobConverter.Services
                 if (_deserializeMethod.Value)
                     return JsonDeserializer.TryDeserialize(data, out result);
                 else
-                    return TryMsgPackDeserialize(data, out result);
+                    return MessagePackDeserializer.TryDeserialize(data, out result);
             }
             bool success = JsonDeserializer.TryDeserialize(data, out result);
             if (success)
@@ -161,24 +160,10 @@ namespace Lykke.Job.BlobToBlobConverter.Services
                 _deserializeMethod = true;
                 return true;
             }
-            success = TryMsgPackDeserialize(data, out result);
+            success = MessagePackDeserializer.TryDeserialize(data, out result);
             if (success)
                 _deserializeMethod = false;
             return success;
-        }
-
-        private bool TryMsgPackDeserialize(byte[] data, out object result)
-        {
-            try
-            {
-                result = MessagePackSerializer.NonGeneric.Deserialize(_messageType, data);
-                return true;
-            }
-            catch
-            {
-                result = null;
-                return false;
-            }
         }
 
         private (string, string) AddValueLevel(

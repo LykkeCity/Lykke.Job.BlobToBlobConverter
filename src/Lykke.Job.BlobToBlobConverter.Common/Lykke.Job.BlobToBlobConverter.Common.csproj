@@ -7,6 +7,7 @@
 
   <ItemGroup>
     <PackageReference Include="Lykke.Common" Version="6.7.0" />
+    <PackageReference Include="MessagePack" Version="1.7.3.4" />
     <PackageReference Include="WindowsAzure.Storage" Version="9.1.1" />
   </ItemGroup>
 
