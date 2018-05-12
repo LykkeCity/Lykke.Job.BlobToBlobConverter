@@ -30,6 +30,7 @@ namespace Lykke.Job.BlobToBlobConverter.Services
 
         private bool? _deserializeMethod;
         private Dictionary<string, List<string>> _objectData;
+        private Func<string, List<string>, Task> _messagesHandler;
 
         public MessageProcessor(
             ITypeRetriever typeRetriever,
@@ -72,9 +73,19 @@ namespace Lykke.Job.BlobToBlobConverter.Services
             return result;
         }
 
-        public void StartBlobProcessing()
+        public void StartBlobProcessing(Func<string, List<string>, Task> messagesHandler)
         {
+            _messagesHandler = messagesHandler;
             _objectData = new Dictionary<string, List<string>>();
+        }
+
+        public async Task FinishBlobProcessingAsync()
+        {
+            foreach (var convertedPair in _objectData)
+            {
+                if (convertedPair.Value.Count > 0)
+                    await _messagesHandler(convertedPair.Key, convertedPair.Value);
+            }
         }
 
         public bool TryProcessMessage(byte[] data)
@@ -94,15 +105,6 @@ namespace Lykke.Job.BlobToBlobConverter.Services
             ProcessTypeItem(obj, null, null);
 
             return true;
-        }
-
-        public async Task FinishBlobProcessingAsync(Func<string, List<string>, Task> messagesHandler)
-        {
-            foreach (var convertedPair in _objectData)
-            {
-                if (convertedPair.Value.Count > 0)
-                    await messagesHandler(convertedPair.Key, convertedPair.Value);
-            }
         }
 
         private (string, string) ProcessTypeItem(

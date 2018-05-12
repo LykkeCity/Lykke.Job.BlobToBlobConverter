@@ -38,11 +38,11 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
                     await _log.WriteInfoAsync(nameof(BlobProcessor), nameof(ProcessAsync), $"Processing {blob}");
 
                     _blobSaver.StartBlobProcessing();
-                    _messageConverter.StartBlobProcessing();
+                    _messageConverter.StartBlobProcessing((container, messages) => _blobSaver.SaveToBlobAsync(messages, container, blob));
 
                     await _blobReader.ReadAndProcessBlobAsync(blob, _messageConverter);
 
-                    await _messageConverter.FinishBlobProcessingAsync((container, messages) => _blobSaver.SaveToBlobAsync(messages, container, blob));
+                    await _messageConverter.FinishBlobProcessingAsync();
                     await _blobSaver.FinishBlobProcessingAsync(blob);
 
                     await _log.WriteInfoAsync(nameof(BlobProcessor), nameof(ProcessAsync), $"Processed {blob}");

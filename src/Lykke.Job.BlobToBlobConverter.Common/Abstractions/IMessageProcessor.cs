@@ -6,12 +6,12 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Abstractions
 {
     public interface IMessageProcessor
     {
-        void StartBlobProcessing();
+        Dictionary<string, string> GetMappingStructure();
+
+        void StartBlobProcessing(Func<string, List<string>, Task> messagesHandler);
+
+        Task FinishBlobProcessingAsync();
 
         bool TryProcessMessage(byte[] data);
-
-        Task FinishBlobProcessingAsync(Func<string, List<string>, Task> messagesHandler);
-
-        Dictionary<string, string> GetMappingStructure();
     }
 }
