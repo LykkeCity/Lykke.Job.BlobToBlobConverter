@@ -1,4 +1,4 @@
-﻿using Lykke.Job.BlobToBlobConverter.Core.Services;
+﻿using Lykke.Job.BlobToBlobConverter.Common.Services;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Blob;
 using Microsoft.WindowsAzure.Storage.RetryPolicies;

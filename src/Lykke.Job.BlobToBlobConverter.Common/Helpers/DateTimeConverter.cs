@@ -1,12 +1,12 @@
 ﻿using System;
 
-namespace Lykke.Job.BlobToBlobConverter.Services.Helpers
+namespace Lykke.Job.BlobToBlobConverter.Common.Helpers
 {
-    internal static class DateTimeConverter
+    public static class DateTimeConverter
     {
         private const string _format = "yyyy-MM-dd HH:mm:ss.fff";
 
-        internal static string Convert(DateTime dateTime)
+        public static string Convert(DateTime dateTime)
         {
             return dateTime.ToString(_format);
         }

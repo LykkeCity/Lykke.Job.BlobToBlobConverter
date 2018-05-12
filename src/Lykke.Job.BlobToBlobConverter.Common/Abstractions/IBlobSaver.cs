@@ -1,7 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Threading.Tasks;
 
-namespace Lykke.Job.BlobToBlobConverter.Core.Services
+namespace Lykke.Job.BlobToBlobConverter.Common.Services
 {
     public interface IBlobSaver
     {

@@ -2,7 +2,8 @@
 using Common.Log;
 using Lykke.Job.BlobToBlobConverter.Core;
 using Lykke.Job.BlobToBlobConverter.Core.Services;
-using Lykke.Job.BlobToBlobConverter.Services.Helpers;
+using Lykke.Job.BlobToBlobConverter.Common.Helpers;
+using Lykke.Job.BlobToBlobConverter.Common.Services;
 using MessagePack;
 using Newtonsoft.Json;
 using System;

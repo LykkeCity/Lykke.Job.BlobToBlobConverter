@@ -15,6 +15,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Lykke.Job.BlobToBlobConvert
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Lykke.Job.BlobToBlobConverter.Tests", "tests\Lykke.Job.BlobToBlobConverter.Tests\Lykke.Job.BlobToBlobConverter.Tests.csproj", "{AAC9F450-14D7-4482-BC12-7C55006864E2}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Lykke.Job.BlobToBlobConverter.Common", "src\Lykke.Job.BlobToBlobConverter.Common\Lykke.Job.BlobToBlobConverter.Common.csproj", "{ECD69DFB-6E8E-421C-9000-2BC86BC35C29}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -37,6 +39,10 @@ Global
 		{AAC9F450-14D7-4482-BC12-7C55006864E2}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{AAC9F450-14D7-4482-BC12-7C55006864E2}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{AAC9F450-14D7-4482-BC12-7C55006864E2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{ECD69DFB-6E8E-421C-9000-2BC86BC35C29}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{ECD69DFB-6E8E-421C-9000-2BC86BC35C29}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{ECD69DFB-6E8E-421C-9000-2BC86BC35C29}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{ECD69DFB-6E8E-421C-9000-2BC86BC35C29}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -45,6 +51,7 @@ Global
 		{0415D4B4-5275-4B5C-AFD5-644572CD91CD} = {68994F01-8220-4B7C-9AB8-14E137C44AE5}
 		{D42134F9-A73E-4890-966D-746FE732934E} = {68994F01-8220-4B7C-9AB8-14E137C44AE5}
 		{AAC9F450-14D7-4482-BC12-7C55006864E2} = {AB790991-CEB2-44A5-9C0C-A2D26DB86D41}
+		{ECD69DFB-6E8E-421C-9000-2BC86BC35C29} = {68994F01-8220-4B7C-9AB8-14E137C44AE5}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {D2419990-C093-4EE2-AFE9-80857ECBB147}
