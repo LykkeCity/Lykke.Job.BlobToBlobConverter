@@ -5,11 +5,9 @@ using Lykke.Job.BlobToBlobConverter.Core.Services;
 using Lykke.Job.BlobToBlobConverter.Common.Helpers;
 using Lykke.Job.BlobToBlobConverter.Common.Abstractions;
 using MessagePack;
-using Newtonsoft.Json;
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
@@ -26,11 +24,6 @@ namespace Lykke.Job.BlobToBlobConverter.Services
         private readonly ILog _log;
         private readonly Dictionary<string, List<string>> _excludedPropertiesMap;
         private readonly Dictionary<string, string> _idPropertiesMap;
-        private readonly JsonSerializer _serializer = JsonSerializer.Create(
-            new JsonSerializerSettings
-            {
-                DateTimeZoneHandling = DateTimeZoneHandling.Utc
-            });
         private readonly Dictionary<Type, (List<PropertyInfo>, List<PropertyInfo>, List<PropertyInfo>)> _propertiesMap
             = new Dictionary<Type, (List<PropertyInfo>, List<PropertyInfo>, List<PropertyInfo>)>();
         private readonly MethodInfo _isValidMethod;
@@ -144,11 +137,11 @@ namespace Lykke.Job.BlobToBlobConverter.Services
             if (_deserializeMethod.HasValue)
             {
                 if (_deserializeMethod.Value)
-                    return TryJsonDeserialize(data, out result);
+                    return JsonDeserializer.TryDeserialize(data, out result);
                 else
                     return TryMsgPackDeserialize(data, out result);
             }
-            bool success = TryJsonDeserialize(data, out result);
+            bool success = JsonDeserializer.TryDeserialize(data, out result);
             if (success)
             {
                 _deserializeMethod = true;
@@ -158,25 +151,6 @@ namespace Lykke.Job.BlobToBlobConverter.Services
             if (success)
                 _deserializeMethod = false;
             return success;
-        }
-
-        private bool TryJsonDeserialize(byte[] data, out object result)
-        {
-            try
-            {
-                using (var stream = new MemoryStream(data))
-                using (var reader = new StreamReader(stream, true))
-                using (var jsonReader = new JsonTextReader(reader))
-                {
-                    result = _serializer.Deserialize(jsonReader, _messageType);
-                    return true;
-                }
-            }
-            catch (Exception)
-            {
-                result = null;
-                return false;
-            }
         }
 
         private bool TryMsgPackDeserialize(byte[] data, out object result)
