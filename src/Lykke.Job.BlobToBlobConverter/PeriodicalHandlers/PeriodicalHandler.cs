@@ -3,7 +3,7 @@ using System.Threading.Tasks;
 using Common;
 using Common.Log;
 using JetBrains.Annotations;
-using Lykke.Job.BlobToBlobConverter.Common.Services;
+using Lykke.Job.BlobToBlobConverter.Common.Abstractions;
 
 namespace Lykke.Job.BlobToBlobConverter.PeriodicalHandlers
 {

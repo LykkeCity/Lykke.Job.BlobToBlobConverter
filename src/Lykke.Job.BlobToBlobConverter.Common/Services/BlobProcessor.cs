@@ -1,5 +1,5 @@
 ﻿using Common.Log;
-using Lykke.Job.BlobToBlobConverter.Common.Services;
+using Lykke.Job.BlobToBlobConverter.Common.Abstractions;
 using System;
 using System.Threading.Tasks;
 
