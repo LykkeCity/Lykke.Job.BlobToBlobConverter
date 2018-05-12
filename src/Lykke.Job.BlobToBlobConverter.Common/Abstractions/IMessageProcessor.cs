@@ -12,6 +12,6 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Abstractions
 
         Task FinishBlobProcessingAsync();
 
-        bool TryProcessMessage(byte[] data);
+        Task<bool> TryProcessMessageAsync(byte[] data);
     }
 }

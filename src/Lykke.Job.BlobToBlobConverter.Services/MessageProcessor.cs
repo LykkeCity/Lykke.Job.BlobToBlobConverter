@@ -18,6 +18,7 @@ namespace Lykke.Job.BlobToBlobConverter.Services
     public class MessageProcessor : IMessageProcessor
     {
         private const string _idPropertyName = "Id";
+        private const int _maxBatchCount = 1000000;
 
         private readonly Type _type;
         private readonly Type _messageType;
@@ -29,7 +30,7 @@ namespace Lykke.Job.BlobToBlobConverter.Services
         private readonly MethodInfo _isValidMethod;
 
         private bool? _deserializeMethod;
-        private Dictionary<string, List<string>> _objectData;
+        private Dictionary<string, List<string>> _objectsData;
         private Func<string, List<string>, Task> _messagesHandler;
 
         public MessageProcessor(
@@ -76,19 +77,15 @@ namespace Lykke.Job.BlobToBlobConverter.Services
         public void StartBlobProcessing(Func<string, List<string>, Task> messagesHandler)
         {
             _messagesHandler = messagesHandler;
-            _objectData = new Dictionary<string, List<string>>();
+            _objectsData = new Dictionary<string, List<string>>();
         }
 
         public async Task FinishBlobProcessingAsync()
         {
-            foreach (var convertedPair in _objectData)
-            {
-                if (convertedPair.Value.Count > 0)
-                    await _messagesHandler(convertedPair.Key, convertedPair.Value);
-            }
+            await SaveObjectsDataAsync();
         }
 
-        public bool TryProcessMessage(byte[] data)
+        public async Task<bool> TryProcessMessageAsync(byte[] data)
         {
             object obj;
             var result = TryDeserialize(data, out obj);
@@ -99,12 +96,27 @@ namespace Lykke.Job.BlobToBlobConverter.Services
             {
                 bool isValid = (bool)_isValidMethod.Invoke(obj, null);
                 if (!isValid)
-                    _log.WriteWarning(nameof(MessageProcessor), nameof(TryProcessMessage), $"{_type.FullName} {obj.ToJson()} is invalid!");
+                    _log.WriteWarning(nameof(MessageProcessor), nameof(TryProcessMessageAsync), $"{_type.FullName} {obj.ToJson()} is invalid!");
             }
 
             ProcessTypeItem(obj, null, null);
 
+            if (_objectsData.Values.Any(v => v.Count >= _maxBatchCount))
+            {
+                await SaveObjectsDataAsync();
+                _objectsData.Clear();
+            }
+
             return true;
+        }
+
+        private async Task SaveObjectsDataAsync()
+        {
+            foreach (var convertedPair in _objectsData)
+            {
+                if (convertedPair.Value.Count > 0)
+                    await _messagesHandler(convertedPair.Key, convertedPair.Value);
+            }
         }
 
         private (string, string) ProcessTypeItem(
@@ -224,10 +236,10 @@ namespace Lykke.Job.BlobToBlobConverter.Services
                 if (id != null)
                     sb.Insert(0, $"{id},");
 
-                if (_objectData.ContainsKey(typeName))
-                    _objectData[typeName].Add(sb.ToString());
+                if (_objectsData.ContainsKey(typeName))
+                    _objectsData[typeName].Add(sb.ToString());
                 else
-                    _objectData.Add(typeName, new List<string> { sb.ToString() });
+                    _objectsData.Add(typeName, new List<string> { sb.ToString() });
             }
             else
             {

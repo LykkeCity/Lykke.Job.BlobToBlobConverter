@@ -111,7 +111,7 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
                             }
                         }
                     }
-                    bool isCorrectChunk = messageProcessor.TryProcessMessage(chunk);
+                    bool isCorrectChunk = await messageProcessor.TryProcessMessageAsync(chunk);
                     if (!isCorrectChunk)
                         continue;
 
