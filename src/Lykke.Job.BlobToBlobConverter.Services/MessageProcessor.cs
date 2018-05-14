@@ -45,7 +45,7 @@ namespace Lykke.Job.BlobToBlobConverter.Services
             _log = log;
             _excludedPropertiesMap = excludedPropertiesMap;
             _idPropertiesMap = idPropertiesMap;
-            _isValidMethod = _type.GetMethod("IsValid");
+            _isValidMethod = _type.GetMethod("IsValid", new Type[0]);
             switch(messageMode)
             {
                 case MessageMode.Single:
@@ -91,19 +91,27 @@ namespace Lykke.Job.BlobToBlobConverter.Services
             if (!result)
                 return false;
 
-            if (_isValidMethod != null)
+            try
             {
-                bool isValid = (bool)_isValidMethod.Invoke(obj, null);
-                if (!isValid)
-                    _log.WriteWarning(nameof(MessageProcessor), nameof(TryProcessMessageAsync), $"{_type.FullName} {obj.ToJson()} is invalid!");
+                if (_isValidMethod != null)
+                {
+                    bool isValid = (bool)_isValidMethod.Invoke(obj, null);
+                    if (!isValid)
+                        _log.WriteWarning(nameof(MessageProcessor), nameof(TryProcessMessageAsync), $"{_type.FullName} {obj.ToJson()} is invalid!");
+                }
+
+                ProcessTypeItem(obj, null, null);
+
+                if (_objectsData.Values.Any(v => v.Count >= _maxBatchCount))
+                {
+                    await SaveObjectsDataAsync();
+                    _objectsData.Clear();
+                }
             }
-
-            ProcessTypeItem(obj, null, null);
-
-            if (_objectsData.Values.Any(v => v.Count >= _maxBatchCount))
+            catch (Exception ex)
             {
-                await SaveObjectsDataAsync();
-                _objectsData.Clear();
+                _log.WriteError(nameof(TryProcessMessageAsync), _type, ex);
+                throw;
             }
 
             return true;
@@ -150,17 +158,17 @@ namespace Lykke.Job.BlobToBlobConverter.Services
             if (_deserializeMethod.HasValue)
             {
                 if (_deserializeMethod.Value)
-                    return JsonDeserializer.TryDeserialize(data, out result);
+                    return JsonDeserializer.TryDeserialize(data, _type, out result);
                 else
-                    return MessagePackDeserializer.TryDeserialize(data, out result);
+                    return MessagePackDeserializer.TryDeserialize(data, _type, out result);
             }
-            bool success = JsonDeserializer.TryDeserialize(data, out result);
+            bool success = JsonDeserializer.TryDeserialize(data, _type, out result);
             if (success)
             {
                 _deserializeMethod = true;
                 return true;
             }
-            success = MessagePackDeserializer.TryDeserialize(data, out result);
+            success = MessagePackDeserializer.TryDeserialize(data, _type, out result);
             if (success)
                 _deserializeMethod = false;
             return success;

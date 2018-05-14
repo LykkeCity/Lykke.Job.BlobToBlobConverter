@@ -1,4 +1,5 @@
 ﻿using MessagePack;
+using System;
 
 namespace Lykke.Job.BlobToBlobConverter.Common.Helpers
 {
@@ -14,6 +15,20 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Helpers
             catch
             {
                 result = default(T);
+                return false;
+            }
+        }
+
+        public static bool TryDeserialize(byte[] data, Type type, out object result)
+        {
+            try
+            {
+                result = MessagePackSerializer.NonGeneric.Deserialize(type, data);
+                return true;
+            }
+            catch
+            {
+                result = null;
                 return false;
             }
         }
