@@ -45,25 +45,56 @@ namespace Lykke.Job.BlobToBlobConverter.Services
                 _type,
                 false,
                 null,
-                result);
+                null,
+                (t, pt) => new StringBuilder(),
+                (sb, n, t) =>
+                {
+                    if (sb.Length > 0)
+                        sb.Append(',');
+                    sb.Append(n);
+                },
+                (sb, n, t) => sb.Insert(0, $"{n},"),
+                sb => sb.Length > 0,
+                (t, sb) => result.Add(t, sb.ToString()));
 
             return result;
         }
 
         public TablesStructure GetTablesStructure()
         {
-            throw new NotImplementedException();
+            var result = new TablesStructure { Tables = new List<TableStructure>() };
+
+            AddStructureLevel(
+                _type,
+                false,
+                null,
+                null,
+                (t, pt) => new TableStructure
+                {
+                    TableName = string.IsNullOrWhiteSpace(pt) ? t : $"{pt}{t}",
+                    AzureBlobFolder = t.ToLower(),
+                    Colums = new List<ColumnInfo>(),
+                },
+                (ts, n, t) => ts.Colums.Add(new ColumnInfo { ColumnName = n, ColumnType = t }),
+                (ts, n, t) => ts.Colums.Insert(0, new ColumnInfo { ColumnName = n, ColumnType = t }),
+                ts => ts.Colums.Count > 0,
+                (t, ts) => result.Tables.Add(ts));
+
+            return result;
         }
 
-        private bool AddStructureLevel(
+        private (bool, string) AddStructureLevel<TCollector>(
             Type type,
             bool parentHasId,
             string parentTypeName,
-            Dictionary<string, string> dictionary)
+            string parentIdTypeName,
+            Func<string, string, TCollector> initCollector,
+            Action<TCollector, string, string> addPropertyInfo,
+            Action<TCollector, string, string> insertPropertyInfoToStart,
+            Func<TCollector, bool> isCollectorNotEmpty,
+            Action<string, TCollector> submitDataFromCollector)
         {
             string typeName = type.Name;
-
-            StringBuilder sb = new StringBuilder();
 
             var excludedProperties = _excludedPropertiesMap.ContainsKey(typeName) ? _excludedPropertiesMap[typeName] : new List<string>(0);
             var idPropertyName = _idPropertiesMap.ContainsKey(typeName) ? _idPropertiesMap[typeName] : null;
@@ -71,7 +102,10 @@ namespace Lykke.Job.BlobToBlobConverter.Services
             var valueProperties = new List<PropertyInfo>();
             var oneToOneChildrenProperties = new List<(PropertyInfo, Type)>();
             var oneToManyChildrenProperties = new List<(PropertyInfo, Type)>();
+
+            var collector = initCollector(typeName, parentTypeName);
             var topLevelProperties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
+            string idTypeName = null;
             foreach (var property in topLevelProperties)
             {
                 if (excludedProperties.Contains(property.Name))
@@ -91,12 +125,18 @@ namespace Lykke.Job.BlobToBlobConverter.Services
                     if (!hasId && (property.Name == IdPropertyName || property.Name == idPropertyName))
                     {
                         hasId = true;
+                        idTypeName = property.PropertyType.Name;
                     }
                     else
                     {
-                        if (sb.Length > 0)
-                            sb.Append(',');
-                        sb.Append(property.Name);
+                        string propertyTypeName = property.PropertyType.Name;
+                        if (property.PropertyType.IsGenericType)
+                        {
+                            string genericType = property.PropertyType.GetGenericArguments()[0].Name;
+                            int ind = propertyTypeName.IndexOf('`');
+                            propertyTypeName = $"{propertyTypeName.Substring(0, ind + 1)}{genericType}";
+                        }
+                        addPropertyInfo(collector, property.Name, propertyTypeName);
                     }
                     valueProperties.Add(property);
                 }
@@ -113,50 +153,72 @@ namespace Lykke.Job.BlobToBlobConverter.Services
                     oneToManyChildrenProperties.Select(i => i.Item1).ToList()
                 ));
 
-            if (sb.Length > 0)
+            if (isCollectorNotEmpty(collector))
             {
                 if (parentHasId && parentTypeName != null)
                 {
                     var parentIdPropertyName = $"{parentTypeName}{IdPropertyName}";
                     var parentIdProperty = type.GetProperty(parentIdPropertyName);
                     if (parentIdProperty == null)
-                        sb.Insert(0, $"{parentIdPropertyName},");
+                    {
+                        if (parentIdTypeName == null)
+                            throw new InvalidOperationException($"Parent id field '{parentIdPropertyName}' type is unknown for type {typeName}");
+                        insertPropertyInfoToStart(collector, parentIdPropertyName, parentIdTypeName);
+                    }
                 }
                 if (hasId)
-                    sb.Insert(0, $"{IdPropertyName},");
-                dictionary.Add(typeName, sb.ToString());
+                {
+                    if (idTypeName == null)
+                        throw new InvalidOperationException($"Id field '{idTypeName}' type is unknown for type {typeName}");
+                    insertPropertyInfoToStart(collector, IdPropertyName, idTypeName);
+                }
+                submitDataFromCollector(typeName, collector);
             }
 
             if (valueProperties.Count == 0)
             {
                 hasId = parentHasId;
                 typeName = parentTypeName;
+                idTypeName = parentIdTypeName;
             }
 
             bool childHasId = false;
+            string childIdTypeName = null;
             foreach (var childTypePair in oneToOneChildrenProperties)
             {
-                childHasId = AddStructureLevel(
+                (childHasId, childIdTypeName) = AddStructureLevel(
                     childTypePair.Item2,
                     hasId,
                     typeName,
-                    dictionary);
+                    idTypeName,
+                    initCollector,
+                    addPropertyInfo,
+                    insertPropertyInfoToStart,
+                    isCollectorNotEmpty,
+                    submitDataFromCollector);
             }
 
             if (oneToOneChildrenProperties.Count == 1 && childHasId)
+            {
                 typeName = oneToOneChildrenProperties[0].Item2.Name;
-            else
-                childHasId = hasId;
+                idTypeName = childIdTypeName;
+                hasId = childHasId;
+            }
             foreach (var childTypePair in oneToManyChildrenProperties)
             {
                 AddStructureLevel(
                     childTypePair.Item2,
-                    childHasId,
+                    hasId,
                     typeName,
-                    dictionary);
+                    idTypeName,
+                    initCollector,
+                    addPropertyInfo,
+                    insertPropertyInfoToStart,
+                    isCollectorNotEmpty,
+                    submitDataFromCollector);
             }
 
-            return hasId;
+            return (hasId, idTypeName);
         }
     }
 }
