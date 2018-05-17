@@ -9,6 +9,7 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
     {
         private readonly IBlobReader _blobReader;
         private readonly IBlobSaver _blobSaver;
+        private readonly IStructureBuilder _structureBuilder;
         private readonly IMessageProcessor _messageConverter;
         private readonly ILog _log;
 
@@ -16,15 +17,20 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
             IBlobReader blobReader,
             IBlobSaver blobSaver,
             IMessageProcessor messageConverter,
+            IStructureBuilder structureBuilder,
             ILog log)
         {
             _blobReader = blobReader;
             _blobSaver = blobSaver;
+            _structureBuilder = structureBuilder;
             _messageConverter = messageConverter;
             _log = log;
 
-            var messagesStructure = _messageConverter.GetMappingStructure();
+            var messagesStructure = _structureBuilder.GetMappingStructure();
             _blobSaver.CreateOrUpdateMappingStructureAsync(messagesStructure).GetAwaiter().GetResult();
+
+            //var tablesStructure = _structureBuilder.GetTablesStructure();
+            //_blobSaver.CreateOrUpdateTablesStructureAsync(tablesStructure).GetAwaiter().GetResult();
         }
 
         public async Task ProcessAsync()

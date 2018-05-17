@@ -6,6 +6,7 @@ using NuGet.Protocol;
 using NuGet.Protocol.Core.Types;
 using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.IO;
 using System.Reflection;
@@ -25,6 +26,7 @@ namespace Lykke.Job.BlobToBlobConverter.Services
         private readonly SourceCacheContext _sourceCacheContext;
         private readonly NugetLogger _nugetLogger;
         private readonly string _downloadDirectory;
+        private readonly ConcurrentDictionary<string, Type> _resolvedTypes = new ConcurrentDictionary<string, Type>();
 
         public TypeRetriever(ILog log)
         {
@@ -51,6 +53,14 @@ namespace Lykke.Job.BlobToBlobConverter.Services
 
         public async Task<Type> RetrieveTypeAsync(string typeName, string nugetPackageName)
         {
+            int dotIndex = typeName.IndexOf('.');
+            if (dotIndex == -1)
+                typeName = $"{nugetPackageName}.{typeName}";
+
+            string typeKey = $"{typeName}_{nugetPackageName}";
+            if (_resolvedTypes.TryGetValue(typeKey, out var result))
+                return result;
+
             IEnumerable<IPackageSearchMetadata> searchMetadata = await _packageMetadataResource.GetMetadataAsync(
                 nugetPackageName,
                 false,
@@ -83,13 +93,12 @@ namespace Lykke.Job.BlobToBlobConverter.Services
                 throw new InvalidOperationException($"Dll files not found in {_packageDownloadContext.DirectDownloadDirectory}");
 
             var assembly = Assembly.LoadFile(dllFiles.First());
-            int dotIndex = typeName.IndexOf('.');
-            if (dotIndex == -1)
-                typeName = $"{nugetPackageName}.{typeName}";
-
             var type = assembly.GetType(typeName);
             if (type == null)
                 throw new InvalidOperationException($"Type {typeName} not found among {assembly.ExportedTypes.Select(t => t.FullName).ToList().ToJson()}");
+
+            _resolvedTypes.TryAdd(typeKey, type);
+
             return type;
         }
     }

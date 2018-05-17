@@ -57,6 +57,15 @@ namespace Lykke.Job.BlobToBlobConverter.Modules
                 .As<ITypeRetriever>()
                 .SingleInstance();
 
+            builder.RegisterType<StructureBuilder>()
+                .As<ITypeInfo>()
+                .As<IStructureBuilder>()
+                .SingleInstance()
+                .WithParameter("processingType", _settings.ProcessingType)
+                .WithParameter("nugetPackageName", _settings.NugetPackage)
+                .WithParameter("excludedPropertiesMap", _settings.ExcludedPropertiesMap)
+                .WithParameter("idPropertiesMap", _settings.IdPropertiesMap);
+
             var messageMode = (MessageMode)Enum.Parse(typeof(MessageMode), _settings.MessageMode);
 
             builder.RegisterType<MessageProcessor>()
@@ -64,9 +73,7 @@ namespace Lykke.Job.BlobToBlobConverter.Modules
                 .SingleInstance()
                 .WithParameter("processingType", _settings.ProcessingType)
                 .WithParameter("nugetPackageName", _settings.NugetPackage)
-                .WithParameter("messageMode", messageMode)
-                .WithParameter("excludedPropertiesMap", _settings.ExcludedPropertiesMap)
-                .WithParameter("idPropertiesMap", _settings.IdPropertiesMap);
+                .WithParameter("messageMode", messageMode);
 
             builder.RegisterType<BlobProcessor>()
                 .As<IBlobProcessor>()

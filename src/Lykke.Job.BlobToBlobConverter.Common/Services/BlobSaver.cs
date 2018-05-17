@@ -1,4 +1,5 @@
-﻿using Lykke.Job.BlobToBlobConverter.Common.Abstractions;
+﻿using Common;
+using Lykke.Job.BlobToBlobConverter.Common.Abstractions;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Blob;
 using Microsoft.WindowsAzure.Storage.RetryPolicies;
@@ -15,6 +16,7 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
     {
         private const string _lastBlobFile = "lastblob.txt";
         private const string _structureSuffix = ".str";
+        private const string _tablesStructureFileName = "TableStructure.str2";
         private const int _maxBlockSize = 100 * 1024 * 1024; // 100Mb
 
         private readonly Encoding _blobEncoding = Encoding.UTF8;
@@ -89,6 +91,24 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
                 await blob.UploadTextAsync(pair.Value, null, _blobRequestOptions, null);
                 await SetContentTypeAsync(blob);
             }
+        }
+
+        public async Task CreateOrUpdateTablesStructureAsync(TablesStructure tablesStructure)
+        {
+            string structureJson = tablesStructure.ToJson();
+
+            var blob = _blobContainer.GetBlockBlobReference(_tablesStructureFileName);
+            bool exists = await blob.ExistsAsync();
+            if (exists)
+            {
+                string structure = await blob.DownloadTextAsync(null, _blobRequestOptions, null);
+                if (structure == structureJson)
+                    return;
+
+                await blob.DeleteAsync();
+            }
+            await blob.UploadTextAsync(structureJson, null, _blobRequestOptions, null);
+            await SetContentTypeAsync(blob);
         }
 
         public async Task SaveToBlobAsync(IEnumerable<string> blocks, string directory, string storagePath)
