@@ -147,16 +147,14 @@ namespace Lykke.Job.BlobToBlobConverter.Services
                 }
             }
 
-            if (PropertiesMap.ContainsKey(type))
-                throw new InvalidOperationException($"Type {typeName} is found more than once");
-
-            PropertiesMap.Add(
-                type,
-                (
-                    valueProperties,
-                    oneToOneChildrenProperties.Select(i => i.Item1).ToList(),
-                    oneToManyChildrenProperties.Select(i => i.Item1).ToList()
-                ));
+            if (!PropertiesMap.ContainsKey(type))
+                PropertiesMap.Add(
+                    type,
+                    (
+                        valueProperties,
+                        oneToOneChildrenProperties.Select(i => i.Item1).ToList(),
+                        oneToManyChildrenProperties.Select(i => i.Item1).ToList()
+                    ));
 
             if (isCollectorNotEmpty(collector))
             {

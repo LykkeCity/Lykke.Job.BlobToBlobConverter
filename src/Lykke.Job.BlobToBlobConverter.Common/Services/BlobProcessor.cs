@@ -45,8 +45,8 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
             _instanceTag = instanceTag;
             _log = log;
 
-            //var messagesStructure = _structureBuilder.GetMappingStructure();
-            //_blobSaver.CreateOrUpdateMappingStructureAsync(messagesStructure).GetAwaiter().GetResult();
+            var messagesStructure = _structureBuilder.GetMappingStructure();
+            _blobSaver.CreateOrUpdateMappingStructureAsync(messagesStructure).GetAwaiter().GetResult();
 
             var tablesStructure = _structureBuilder.GetTablesStructure();
             _blobSaver.CreateOrUpdateTablesStructureAsync(tablesStructure).GetAwaiter().GetResult();
