@@ -11,6 +11,7 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
         private readonly IBlobSaver _blobSaver;
         private readonly IStructureBuilder _structureBuilder;
         private readonly IMessageProcessor _messageConverter;
+        private readonly string _instanceTag;
         private readonly ILog _log;
 
         public BlobProcessor(
@@ -18,12 +19,14 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
             IBlobSaver blobSaver,
             IMessageProcessor messageConverter,
             IStructureBuilder structureBuilder,
+            string instanceTag,
             ILog log)
         {
             _blobReader = blobReader;
             _blobSaver = blobSaver;
             _structureBuilder = structureBuilder;
             _messageConverter = messageConverter;
+            _instanceTag = instanceTag;
             _log = log;
 
             //var messagesStructure = _structureBuilder.GetMappingStructure();
@@ -55,11 +58,11 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
                 }
                 catch (Exception ex)
                 {
-                    await _log.WriteFatalErrorAsync("BlobProcessor.ProcessAsync", blob, ex);
+                    _log.WriteError("BlobProcessor.ProcessAsync", string.IsNullOrEmpty(_instanceTag) ? blob : $"{_instanceTag}:{blob}", ex);
                     throw;
                 }
             }
-            await _log.WriteInfoAsync(nameof(BlobProcessor), nameof(ProcessAsync), $"Processed {blobs.Count} blobs");
+            _log.WriteInfo(nameof(BlobProcessor), nameof(ProcessAsync), $"Processed {blobs.Count} blobs");
         }
     }
 }
