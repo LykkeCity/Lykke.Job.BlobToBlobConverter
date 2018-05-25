@@ -19,6 +19,22 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
             IBlobSaver blobSaver,
             IMessageProcessor messageConverter,
             IStructureBuilder structureBuilder,
+            ILog log)
+            : this(
+                blobReader,
+                blobSaver,
+                messageConverter,
+                structureBuilder,
+                null,
+                log)
+        {
+        }
+
+        public BlobProcessor(
+            IBlobReader blobReader,
+            IBlobSaver blobSaver,
+            IMessageProcessor messageConverter,
+            IStructureBuilder structureBuilder,
             string instanceTag,
             ILog log)
         {
