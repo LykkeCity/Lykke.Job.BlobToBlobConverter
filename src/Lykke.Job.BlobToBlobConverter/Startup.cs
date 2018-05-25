@@ -64,7 +64,9 @@ namespace Lykke.Job.BlobToBlobConverter
 
                 Log = CreateLogWithSlack(services, appSettings);
 
-                builder.RegisterModule(new JobModule(appSettings.CurrentValue.BlobToBlobConverterJob, Log));
+                string instanceTag = Configuration["InstanceTag"];
+
+                builder.RegisterModule(new JobModule(appSettings.CurrentValue.BlobToBlobConverterJob, Log, instanceTag));
 
                 builder.Populate(services);
 

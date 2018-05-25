@@ -16,11 +16,13 @@ namespace Lykke.Job.BlobToBlobConverter.Modules
     {
         private readonly BlobToBlobConverterSettings _settings;
         private readonly ILog _log;
+        private readonly string _instanceTag;
 
-        public JobModule(BlobToBlobConverterSettings settings, ILog log)
+        public JobModule(BlobToBlobConverterSettings settings, ILog log, string instanceTag)
         {
             _settings = settings;
             _log = log;
+            _instanceTag = instanceTag;
         }
 
         protected override void Load(ContainerBuilder builder)
@@ -63,6 +65,7 @@ namespace Lykke.Job.BlobToBlobConverter.Modules
                 .SingleInstance()
                 .WithParameter("processingType", _settings.ProcessingType)
                 .WithParameter("nugetPackageName", _settings.NugetPackage)
+                .WithParameter("instanceTag", _instanceTag)
                 .WithParameter("excludedPropertiesMap", _settings.ExcludedPropertiesMap)
                 .WithParameter("idPropertiesMap", _settings.IdPropertiesMap);
 

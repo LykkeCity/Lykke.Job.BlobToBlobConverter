@@ -14,6 +14,7 @@ namespace Lykke.Job.BlobToBlobConverter.Services
         private readonly Type _type;
         private readonly Dictionary<string, List<string>> _excludedPropertiesMap;
         private readonly Dictionary<string, string> _idPropertiesMap;
+        private readonly string _instanceTag;
 
         public string IdPropertyName => "Id";
 
@@ -23,12 +24,14 @@ namespace Lykke.Job.BlobToBlobConverter.Services
             ITypeRetriever typeRetriever,
             string processingType,
             string nugetPackageName,
+            string instanceTag,
             Dictionary<string, List<string>> excludedPropertiesMap,
             Dictionary<string, string> idPropertiesMap)
         {
             _type = typeRetriever.RetrieveTypeAsync(processingType, nugetPackageName).GetAwaiter().GetResult();
             _excludedPropertiesMap = excludedPropertiesMap;
             _idPropertiesMap = idPropertiesMap;
+            _instanceTag = instanceTag;
             PropertiesMap = new Dictionary<Type, (List<PropertyInfo>, List<PropertyInfo>, List<PropertyInfo>)>();
         }
 
@@ -71,7 +74,9 @@ namespace Lykke.Job.BlobToBlobConverter.Services
                 null,
                 (t, pt) => new TableStructure
                 {
-                    TableName = string.IsNullOrWhiteSpace(pt) ? t : $"{pt}{t}",
+                    TableName = string.IsNullOrWhiteSpace(pt)
+                        ? (string.IsNullOrWhiteSpace(_instanceTag) ? t : $"{t}_{_instanceTag}")
+                        : (string.IsNullOrWhiteSpace(_instanceTag) ? $"{pt}{t}" : $"{pt}{t}_{_instanceTag}"),
                     AzureBlobFolder = t.ToLower(),
                     Colums = new List<ColumnInfo>(),
                 },
