@@ -20,6 +20,7 @@ namespace Lykke.Job.BlobToBlobConverter.Services
 
         private readonly Type _type;
         private readonly Type _messageType;
+        private readonly bool _skipCorrupted;
         private readonly ILog _log;
         private readonly ITypeInfo _typeInfo;
         private readonly MethodInfo _isValidMethod;
@@ -32,6 +33,7 @@ namespace Lykke.Job.BlobToBlobConverter.Services
             string processingType,
             string nugetPackageName,
             MessageMode messageMode,
+            bool skipCorrupted,
             ITypeRetriever typeRetriever,
             ITypeInfo typeInfo,
             ILog log)
@@ -39,6 +41,7 @@ namespace Lykke.Job.BlobToBlobConverter.Services
             _type = typeRetriever.RetrieveTypeAsync(processingType, nugetPackageName).GetAwaiter().GetResult();
             _log = log;
             _typeInfo = typeInfo;
+            _skipCorrupted = skipCorrupted;
             _isValidMethod = _type.GetMethod("IsValid", new Type[0]);
             switch(messageMode)
             {
@@ -92,7 +95,10 @@ namespace Lykke.Job.BlobToBlobConverter.Services
             catch (Exception ex)
             {
                 _log.WriteError(nameof(TryProcessMessageAsync), _type, ex);
-                throw;
+                if (_skipCorrupted)
+                    _log.WriteWarning(nameof(TryProcessMessageAsync), obj, "Skipped corrupted message");
+                else
+                    throw;
             }
 
             return true;

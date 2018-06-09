@@ -76,6 +76,7 @@ namespace Lykke.Job.BlobToBlobConverter.Modules
                 .SingleInstance()
                 .WithParameter("processingType", _settings.ProcessingType)
                 .WithParameter("nugetPackageName", _settings.NugetPackage)
+                .WithParameter("skipCorrupted", _settings.SkipCorrupted ?? false)
                 .WithParameter("messageMode", messageMode);
 
             builder.RegisterType<BlobProcessor>()
