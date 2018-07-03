@@ -116,11 +116,16 @@ namespace Lykke.Job.BlobToBlobConverter.Services
                 if (excludedProperties.Contains(property.Name))
                     continue;
 
-                if (property.PropertyType.IsClass && property.PropertyType != typeof(string))
+                if ((property.PropertyType.IsClass || property.PropertyType.IsInterface) && property.PropertyType != typeof(string))
                 {
                     if (property.PropertyType.IsArray)
                         oneToManyChildrenProperties.Add((property, property.PropertyType.GetElementType()));
-                    else if (property.PropertyType.IsGenericType && property.PropertyType.GetGenericTypeDefinition() == typeof(List<>))
+                    else if (property.PropertyType.IsGenericType
+                        && (property.PropertyType.GetGenericTypeDefinition() == typeof(List<>)
+                            || property.PropertyType.GetGenericTypeDefinition() == typeof(IList<>)
+                            || property.PropertyType.GetGenericTypeDefinition() == typeof(IReadOnlyList<>)
+                            || property.PropertyType.GetGenericTypeDefinition() == typeof(ICollection<>)
+                            || property.PropertyType.GetGenericTypeDefinition() == typeof(IReadOnlyCollection<>)))
                         oneToManyChildrenProperties.Add((property, property.PropertyType.GetGenericArguments()[0]));
                     else
                         oneToOneChildrenProperties.Add((property, property.PropertyType));
