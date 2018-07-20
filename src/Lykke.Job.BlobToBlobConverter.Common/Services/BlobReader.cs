@@ -1,4 +1,5 @@
-﻿using Lykke.Job.BlobToBlobConverter.Common.Abstractions;
+﻿using Common.Log;
+using Lykke.Job.BlobToBlobConverter.Common.Abstractions;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Blob;
 using Microsoft.WindowsAzure.Storage.RetryPolicies;
@@ -25,9 +26,13 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
             MaximumExecutionTime = TimeSpan.FromMinutes(60),
             ServerTimeout = TimeSpan.FromMinutes(60)
         };
+        private readonly ILog _log;
         private readonly byte[] _eolBytes = Encoding.UTF8.GetBytes("\r\n\r\n");
 
-        public BlobReader(string container, string blobConnectionString)
+        public BlobReader(
+            string container,
+            string blobConnectionString,
+            ILog log)
         {
             _container = container.ToLower();
             var blobClient = CloudStorageAccount.Parse(blobConnectionString).CreateCloudBlobClient();
@@ -35,6 +40,7 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
             bool containerExists = _blobContainer.ExistsAsync().GetAwaiter().GetResult();
             if (!containerExists)
                 throw new InvalidOperationException($"Container {_container} doesn't exist!");
+            _log = log;
         }
 
         public async Task<List<string>> GetBlobsForConversionAsync(string lastBlob)
@@ -88,8 +94,13 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
                 int filledCount = Math.Min(arrayLength, writeStart + readCount);
                 for (int i = _eolBytes.Length - 1; i < filledCount; ++i)
                 {
-                    if (!FindEolPattern(buffer, i))
+                    (bool eolFound, int seekStep) = FindEolPattern(buffer, i);
+                    if (!eolFound)
+                    {
+                        if (seekStep > 1)
+                            i += seekStep - 1;
                         continue;
+                    }
 
                     int chunkSize = i - lastEolIndex - _eolBytes.Length;
                     if (chunkSize == 0)
@@ -99,21 +110,32 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
                     Array.Copy(buffer, lastEolIndex + 1, chunk, 0, chunkSize);
                     if (isBlobCompressed)
                     {
-                        using (MemoryStream comp = new MemoryStream(chunk))
+                        try
                         {
-                            using (MemoryStream decomp = new MemoryStream())
+                            using (MemoryStream comp = new MemoryStream(chunk))
                             {
-                                using (GZipStream gzip = new GZipStream(comp, CompressionMode.Decompress))
+                                using (MemoryStream decomp = new MemoryStream())
                                 {
-                                    gzip.CopyTo(decomp);
+                                    using (GZipStream gzip = new GZipStream(comp, CompressionMode.Decompress))
+                                    {
+                                        gzip.CopyTo(decomp);
+                                    }
+                                    chunk = decomp.ToArray();
                                 }
-                                chunk = decomp.ToArray();
                             }
                         }
+                        catch (InvalidDataException ex)
+                        {
+                            _log.WriteError(nameof(ReadAndProcessBlobAsync), null, ex);
+                            chunk = null;
+                        }
                     }
-                    bool isCorrectChunk = await messageProcessor.TryProcessMessageAsync(chunk);
-                    if (!isCorrectChunk)
-                        continue;
+                    if (chunk != null)
+                    {
+                        bool isCorrectChunk = await messageProcessor.TryProcessMessageAsync(chunk);
+                        if (!isCorrectChunk)
+                            continue;
+                    }
 
                     lastEolIndex = i;
                 }
@@ -136,15 +158,25 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
             while (blobPosition < blobSize);
         }
 
-        private bool FindEolPattern(byte[] buffer, int pos)
+        private (bool, int) FindEolPattern(byte[] buffer, int pos)
         {
             int startPos = pos - _eolBytes.Length + 1;
-            for (int i = 0; i < _eolBytes.Length; ++i)
+            for (int i = _eolBytes.Length - 1; i >= 0; --i)
             {
                 if (buffer[startPos + i] != _eolBytes[i])
-                    return false;
+                {
+                    int nextStep = 1;
+                    for (int j = 1; j < _eolBytes.Length; ++j)
+                    {
+                        if (buffer[startPos + j] != _eolBytes[0])
+                            ++nextStep;
+                        else
+                            return (false, nextStep);
+                    }
+                    return (false, nextStep);
+                }
             }
-            return true;
+            return (true, 0);
         }
     }
 }
