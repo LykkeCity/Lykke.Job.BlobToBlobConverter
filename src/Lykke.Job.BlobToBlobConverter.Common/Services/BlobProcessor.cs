@@ -60,7 +60,7 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
             {
                 try
                 {
-                    await _log.WriteInfoAsync(nameof(BlobProcessor), nameof(ProcessAsync), $"Processing {blob}");
+                    _log.WriteInfo(nameof(BlobProcessor), nameof(ProcessAsync), $"Processing {blob}");
 
                     _blobSaver.StartBlobProcessing();
                     _messageConverter.StartBlobProcessing((container, messages) => _blobSaver.SaveToBlobAsync(messages, container, blob));
@@ -70,7 +70,7 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
                     await _messageConverter.FinishBlobProcessingAsync();
                     await _blobSaver.FinishBlobProcessingAsync(blob);
 
-                    await _log.WriteInfoAsync(nameof(BlobProcessor), nameof(ProcessAsync), $"Processed {blob}");
+                    _log.WriteInfo(nameof(BlobProcessor), nameof(ProcessAsync), $"Processed {blob}");
                 }
                 catch (Exception ex)
                 {

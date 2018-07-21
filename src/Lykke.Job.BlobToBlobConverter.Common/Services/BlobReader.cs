@@ -72,6 +72,7 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
             long blobPosition = 0;
             int arrayLength = _blobBlockSize;
             var buffer = new byte[arrayLength];
+            bool facedErrorOnUnpack = false;
             int writeStart = 0;
             do
             {
@@ -123,11 +124,16 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
                                     chunk = decomp.ToArray();
                                 }
                             }
+                            if (facedErrorOnUnpack)
+                                facedErrorOnUnpack = false;
                         }
                         catch (InvalidDataException ex)
                         {
+                            if (facedErrorOnUnpack)
+                                throw;
                             _log.WriteError(nameof(ReadAndProcessBlobAsync), null, ex);
                             chunk = null;
+                            facedErrorOnUnpack = true;
                         }
                     }
                     if (chunk != null)

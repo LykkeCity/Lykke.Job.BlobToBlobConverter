@@ -36,10 +36,12 @@ namespace Lykke.Job.BlobToBlobConverter.Modules
                 .SingleInstance();
 
             builder.RegisterType<StartupManager>()
-                .As<IStartupManager>();
+                .As<IStartupManager>()
+                .SingleInstance();
 
             builder.RegisterType<ShutdownManager>()
-                .As<IShutdownManager>();
+                .As<IShutdownManager>()
+                .SingleInstance();
 
             builder.RegisterResourcesMonitoring(_log);
 
@@ -85,8 +87,7 @@ namespace Lykke.Job.BlobToBlobConverter.Modules
                 .WithParameter("instanceTag", _instanceTag);
 
             builder.RegisterType<PeriodicalHandler>()
-                .As<IStartable>()
-                .AutoActivate()
+                .As<IMainHandler>()
                 .SingleInstance()
                 .WithParameter(TypedParameter.From(_settings.BlobScanPeriod));
         }
