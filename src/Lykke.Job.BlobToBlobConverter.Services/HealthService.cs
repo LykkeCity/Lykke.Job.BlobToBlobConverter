@@ -17,11 +17,9 @@ namespace Lykke.Job.BlobToBlobConverter.Services
 
         public IEnumerable<HealthIssue> GetHealthIssues()
         {
-            var issues = new HealthIssuesCollection();
-
             // TODO: Check gathered health statistics, and add appropriate health issues message to issues
 
-            return issues;
+            return new List<HealthIssue>();
         }
 
         // TODO: Place health tracing methods here

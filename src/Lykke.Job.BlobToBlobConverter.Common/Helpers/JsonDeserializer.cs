@@ -1,9 +1,11 @@
-﻿using Newtonsoft.Json;
+﻿using JetBrains.Annotations;
+using Newtonsoft.Json;
 using System;
 using System.IO;
 
 namespace Lykke.Job.BlobToBlobConverter.Common.Helpers
 {
+    [PublicAPI]
     public static class JsonDeserializer
     {
         private static readonly JsonSerializer _serializer = JsonSerializer.Create(

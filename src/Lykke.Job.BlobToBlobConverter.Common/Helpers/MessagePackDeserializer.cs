@@ -1,8 +1,10 @@
-﻿using MessagePack;
+﻿using JetBrains.Annotations;
+using MessagePack;
 using System;
 
 namespace Lykke.Job.BlobToBlobConverter.Common.Helpers
 {
+    [PublicAPI]
     public static class MessagePackDeserializer
     {
         public static bool TryDeserialize<T>(byte[] data, out T result)

@@ -25,7 +25,7 @@ namespace Lykke.Job.BlobToBlobConverter.Services
         private readonly ITypeInfo _typeInfo;
         private readonly MethodInfo _isValidMethod;
 
-        private bool? _deserializeMethod;
+        private SerializationFormat? _deserializeFormat;
         private Dictionary<string, List<string>> _objectsData;
         private Func<string, List<string>, Task> _messagesHandler;
 
@@ -70,8 +70,7 @@ namespace Lykke.Job.BlobToBlobConverter.Services
 
         public async Task<bool> TryProcessMessageAsync(byte[] data)
         {
-            object obj;
-            var result = TryDeserialize(data, out obj);
+            var result = TryDeserialize(data, out var obj);
             if (!result)
                 return false;
 
@@ -142,22 +141,33 @@ namespace Lykke.Job.BlobToBlobConverter.Services
 
         private bool TryDeserialize(byte[] data, out object result)
         {
-            if (_deserializeMethod.HasValue)
+            if (_deserializeFormat.HasValue)
             {
-                if (_deserializeMethod.Value)
-                    return JsonDeserializer.TryDeserialize(data, _messageType, out result);
-                else
-                    return MessagePackDeserializer.TryDeserialize(data, _messageType, out result);
+                switch (_deserializeFormat.Value)
+                {
+                    case SerializationFormat.Json:
+                        return JsonDeserializer.TryDeserialize(data, _messageType, out result);
+                    case SerializationFormat.MessagePack:
+                        return MessagePackDeserializer.TryDeserialize(data, _messageType, out result);
+                    case SerializationFormat.Protobuf:
+                        return ProtobufDeserializer.TryDeserialize(data, _messageType, out result);
+                    default:
+                        throw new NotSupportedException($"Serialization format {_deserializeFormat.Value} is not supported");
+                }
             }
             bool success = JsonDeserializer.TryDeserialize(data, _messageType, out result);
             if (success)
             {
-                _deserializeMethod = true;
+                _deserializeFormat = SerializationFormat.Json;
                 return true;
             }
             success = MessagePackDeserializer.TryDeserialize(data, _messageType, out result);
             if (success)
-                _deserializeMethod = false;
+            {
+                _deserializeFormat = SerializationFormat.MessagePack;
+                return true;
+            }
+            success = ProtobufDeserializer.TryDeserialize(data, _messageType, out result);
             return success;
         }
 
