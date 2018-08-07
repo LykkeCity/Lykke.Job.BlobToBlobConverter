@@ -229,7 +229,7 @@ namespace Lykke.Job.BlobToBlobConverter.Services
                                 strValue = value.ToString();
                             }
                         }
-                        if (typeData.ParentIdProperty.Name != null && valueProperty.Name == typeData.ParentIdProperty.Name)
+                        if (typeData.ParentIdProperty != null && valueProperty.Name == typeData.ParentIdProperty.Name)
                             hasParentIdProperty = true;
                         if (sb.Length > 0 || i > 0 && (i != 1 || id == null))
                             sb.Append(',');
