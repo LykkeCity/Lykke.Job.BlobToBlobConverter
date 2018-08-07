@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Reflection;
 
 namespace Lykke.Job.BlobToBlobConverter.Core.Services
 {
@@ -8,7 +7,7 @@ namespace Lykke.Job.BlobToBlobConverter.Core.Services
     {
         string IdPropertyName { get; }
 
-        Dictionary<Type, (List<PropertyInfo>, List<PropertyInfo>, List<PropertyInfo>)> PropertiesMap { get; }
+        Dictionary<Type, TypeData> PropertiesMap { get; }
 
         string GetIdPropertyName(string typeName);
     }

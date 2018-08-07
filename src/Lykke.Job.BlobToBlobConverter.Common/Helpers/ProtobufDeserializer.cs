@@ -12,10 +12,8 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Helpers
         {
             try
             {
-                using (var memStream = new MemoryStream())
+                using (var memStream = new MemoryStream(data))
                 {
-                    memStream.Write(data, 0, data.Length);
-                    memStream.Seek(0, SeekOrigin.Begin);
                     result = Serializer.Deserialize<T>(memStream);
                     return true;
                 }
@@ -31,10 +29,8 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Helpers
         {
             try
             {
-                using (var memStream = new MemoryStream())
+                using (var memStream = new MemoryStream(data))
                 {
-                    memStream.Write(data, 0, data.Length);
-                    memStream.Seek(0, SeekOrigin.Begin);
                     result = Serializer.Deserialize(type, memStream);
                     return true;
                 }

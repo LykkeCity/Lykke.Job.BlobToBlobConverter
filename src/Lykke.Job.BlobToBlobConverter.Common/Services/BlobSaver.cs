@@ -1,4 +1,6 @@
 ﻿using Common;
+using Common.Log;
+using JetBrains.Annotations;
 using Lykke.Job.BlobToBlobConverter.Common.Abstractions;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Blob;
@@ -12,6 +14,7 @@ using System.Threading.Tasks;
 
 namespace Lykke.Job.BlobToBlobConverter.Common.Services
 {
+    [PublicAPI]
     public class BlobSaver : IBlobSaver
     {
         private const string _lastBlobFile = "lastblob.txt";
@@ -27,14 +30,19 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
             MaximumExecutionTime = TimeSpan.FromMinutes(60),
             ServerTimeout = TimeSpan.FromMinutes(60)
         };
+        private readonly ILog _log;
         private readonly ConcurrentDictionary<string, List<string>> _blobDict = new ConcurrentDictionary<string, List<string>>();
 
-        public BlobSaver(string blobConnectionString, string rootContainer)
+        public BlobSaver(
+            string blobConnectionString,
+            string rootContainer,
+            ILog log)
         {
             var blobClient = CloudStorageAccount.Parse(blobConnectionString).CreateCloudBlobClient();
             _blobContainer = blobClient.GetContainerReference(rootContainer);
             if (!_blobContainer.ExistsAsync().GetAwaiter().GetResult())
                 _blobContainer.CreateAsync(BlobContainerPublicAccessType.Off, null, null).GetAwaiter().GetResult();
+            _log = log;
         }
 
         public async Task<string> GetLastSavedBlobAsync()
@@ -86,6 +94,8 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
                     string structure = await blob.DownloadTextAsync(null, _blobRequestOptions, null);
                     if (structure == pair.Value)
                         continue;
+
+                    _log.WriteWarning(nameof(CreateOrUpdateMappingStructureAsync), pair.Key, $"Mapping structure is changed from {structure} to {pair.Value}");
                     await blob.DeleteAsync();
                 }
                 await blob.UploadTextAsync(pair.Value, null, _blobRequestOptions, null);
@@ -95,19 +105,20 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
 
         public async Task CreateOrUpdateTablesStructureAsync(TablesStructure tablesStructure)
         {
-            string structureJson = tablesStructure.ToJson();
+            string newStructure = tablesStructure.ToJson();
 
             var blob = _blobContainer.GetBlockBlobReference(_tablesStructureFileName);
             bool exists = await blob.ExistsAsync();
             if (exists)
             {
                 string structure = await blob.DownloadTextAsync(null, _blobRequestOptions, null);
-                if (structure == structureJson)
+                if (structure == newStructure)
                     return;
 
+                _log.WriteWarning(nameof(CreateOrUpdateTablesStructureAsync), "Table structure change", $"Table structure is changed from {structure} to {newStructure}");
                 await blob.DeleteAsync();
             }
-            await blob.UploadTextAsync(structureJson, null, _blobRequestOptions, null);
+            await blob.UploadTextAsync(newStructure, null, _blobRequestOptions, null);
             await SetContentTypeAsync(blob);
         }
 

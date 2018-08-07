@@ -19,6 +19,8 @@ namespace Lykke.Job.BlobToBlobConverter.Services
     {
         private const string _libsDir = "libs";
         private const string _dllExtension = ".dll";
+        private const string _betaSuffix = "-beta";
+        private const string _packageSource = "https://api.nuget.org/v3/index.json";
 
         private readonly PackageMetadataResource _packageMetadataResource;
         private readonly DownloadResource _downloadResource;
@@ -32,7 +34,7 @@ namespace Lykke.Job.BlobToBlobConverter.Services
         {
             List<Lazy<INuGetResourceProvider>> providers = new List<Lazy<INuGetResourceProvider>>();
             providers.AddRange(Repository.Provider.GetCoreV3());  // Add v3 API support
-            var packageSource = new PackageSource("https://api.nuget.org/v3/index.json");
+            var packageSource = new PackageSource(_packageSource);
             SourceRepository sourceRepository = new SourceRepository(packageSource, providers);
             _packageMetadataResource = sourceRepository.GetResource<PackageMetadataResource>();
             _downloadResource = sourceRepository.GetResource<DownloadResource>();
@@ -61,9 +63,12 @@ namespace Lykke.Job.BlobToBlobConverter.Services
             if (_resolvedTypes.TryGetValue(typeKey, out var result))
                 return result;
 
+            bool isBetaPackage = nugetPackageName.EndsWith(_betaSuffix);
+            (string searchName, bool isSpecificVersion) = GetSearchablePackageName(nugetPackageName, isBetaPackage);
+
             IEnumerable<IPackageSearchMetadata> searchMetadata = await _packageMetadataResource.GetMetadataAsync(
-                nugetPackageName,
-                false,
+                searchName,
+                isBetaPackage,
                 false,
                 _nugetLogger,
                 CancellationToken.None);
@@ -73,7 +78,7 @@ namespace Lykke.Job.BlobToBlobConverter.Services
             var packageInfo = searchMetadata
                 .Cast<PackageSearchMetadata>()
                 .OrderByDescending(p => p.Version)
-                .First();
+                .First(i => !isSpecificVersion || i.Identity.ToString() == nugetPackageName);
 
             var downloadResult = await _downloadResource.GetDownloadResourceResultAsync(
                 packageInfo.Identity,
@@ -100,6 +105,21 @@ namespace Lykke.Job.BlobToBlobConverter.Services
             _resolvedTypes.TryAdd(typeKey, type);
 
             return type;
+        }
+
+        private (string, bool) GetSearchablePackageName(string fullPackageName, bool isBetaPackage)
+        {
+            string packageName = isBetaPackage
+                ? fullPackageName.Substring(0, fullPackageName.Length - _betaSuffix.Length)
+                : fullPackageName;
+            var parts = packageName.Split('.');
+            for (int i = parts.Length - 1; i > 0; --i)
+            {
+                if (!int.TryParse(parts[i], out _))
+                    return (string.Join('.', parts.Take(i + 1)), isBetaPackage || i < parts.Length - 1);
+            }
+
+            return (packageName, isBetaPackage);
         }
     }
 }

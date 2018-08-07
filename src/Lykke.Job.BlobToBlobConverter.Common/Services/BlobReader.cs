@@ -1,4 +1,5 @@
 ﻿using Common.Log;
+using JetBrains.Annotations;
 using Lykke.Job.BlobToBlobConverter.Common.Abstractions;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Blob;
@@ -13,6 +14,7 @@ using System.Threading.Tasks;
 
 namespace Lykke.Job.BlobToBlobConverter.Common.Services
 {
+    [PublicAPI]
     public class BlobReader : IBlobReader
     {
         private const int _blobBlockSize = 4 * 1024 * 1024; // 4 Mb

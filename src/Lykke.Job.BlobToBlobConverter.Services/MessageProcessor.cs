@@ -83,7 +83,7 @@ namespace Lykke.Job.BlobToBlobConverter.Services
                         _log.WriteWarning(nameof(MessageProcessor), nameof(TryProcessMessageAsync), $"{_type.FullName} {obj.ToJson()} is invalid!");
                 }
 
-                ProcessTypeItem(obj, null, null);
+                ProcessTypeItem(obj, null);
 
                 if (_objectsData.Values.Any(v => v.Count >= _maxBatchCount))
                 {
@@ -112,31 +112,20 @@ namespace Lykke.Job.BlobToBlobConverter.Services
             }
         }
 
-        private (string, string) ProcessTypeItem(
-            object obj,
-            string parentId,
-            string parentTypeName)
+        private void ProcessTypeItem(object obj, string parentId)
         {
-            (string, string) result = (null, null);
             var items = obj as IEnumerable;
             if (items != null)
             {
                 foreach (var item in items)
                 {
-                    result = AddValueLevel(
-                        item,
-                        parentId,
-                        parentTypeName);
+                    AddValueLevel(item, parentId);
                 }
             }
             else
             {
-                result = AddValueLevel(
-                    obj,
-                    parentId,
-                    parentTypeName);
+                AddValueLevel(obj, parentId);
             }
-            return result;
         }
 
         private bool TryDeserialize(byte[] data, out object result)
@@ -171,29 +160,25 @@ namespace Lykke.Job.BlobToBlobConverter.Services
             return success;
         }
 
-        private (string, string) AddValueLevel(
-            object obj,
-            string parentId,
-            string parentTypeName)
+        private void AddValueLevel(object obj, string parentId)
         {
             if (obj == null)
-                return (null, null);
+                return;
 
             Type type = obj.GetType();
             string typeName = type.Name;
 
             var idPropertyName = _typeInfo.GetIdPropertyName(typeName);
-            string parentIdPropertyName = parentTypeName != null ? $"{parentTypeName}{_typeInfo.IdPropertyName}" : null;
-            (var valueProperties, var oneToOneChildrenProperties, var oneToManyChildrenProperties) = _typeInfo.PropertiesMap[type];
+            var typeData = _typeInfo.PropertiesMap[type];
 
             string id = null;
-            if (valueProperties.Count > 0)
+            if (typeData.ValueProperties.Count > 0)
             {
                 StringBuilder sb = new StringBuilder();
                 bool hasParentIdProperty = false;
-                for (int i = 0; i < valueProperties.Count; ++i)
+                for (int i = 0; i < typeData.ValueProperties.Count; ++i)
                 {
-                    var valueProperty = valueProperties[i];
+                    var valueProperty = typeData.ValueProperties[i];
                     object value = valueProperty.GetValue(obj);
                     if (valueProperty.Name == _typeInfo.IdPropertyName || valueProperty.Name == idPropertyName)
                     {
@@ -207,13 +192,29 @@ namespace Lykke.Job.BlobToBlobConverter.Services
                         if (value != null)
                         {
                             if (valueProperty.PropertyType == typeof(DateTime))
+                            {
                                 strValue = DateTimeConverter.Convert((DateTime)value);
+                            }
                             else if (valueProperty.PropertyType == typeof(DateTime?))
+                            {
                                 strValue = DateTimeConverter.Convert(((DateTime?)value).Value);
+                            }
+                            else if (StructureBuilder.GenericCollectionTypes.Any(t => t == valueProperty.PropertyType))
+                            {
+                                var strValues = new List<string>();
+                                var enumerable = (IEnumerable) value;
+                                foreach(var item in enumerable)
+                                {
+                                    strValues.Add(item.ToString() ?? string.Empty);
+                                }
+                                strValue = string.Join(';', strValues);
+                            }
                             else
+                            {
                                 strValue = value.ToString();
+                            }
                         }
-                        if (parentIdPropertyName != null && valueProperty.Name == parentIdPropertyName)
+                        if (typeData.ParentIdProperty.Name != null && valueProperty.Name == typeData.ParentIdProperty.Name)
                             hasParentIdProperty = true;
                         if (sb.Length > 0 || i > 0 && (i != 1 || id == null))
                             sb.Append(',');
@@ -231,33 +232,28 @@ namespace Lykke.Job.BlobToBlobConverter.Services
                 else
                     _objectsData.Add(typeName, new List<string> { sb.ToString() });
             }
-            else
-            {
-                id = parentId;
-                typeName = parentTypeName;
-            }
 
-            string childId = null;
-            string childTypeName = null;
-            foreach (var childrenEntityProperty in oneToOneChildrenProperties)
+            if (typeData.OneChildrenProperties.Count == 0 && typeData.ManyChildrenProperties.Count == 0)
+                return;
+
+            if (id == null)
+                id = GetIdFromChildren(obj, typeData);
+            if (id == null)
+                id = parentId;
+            if (id == null)
+                throw new InvalidOperationException(
+                    $"Message {obj.ToJson()} must have any identificators that can be used to make relations between its children elements");
+
+            foreach (var childEntityProperty in typeData.OneChildrenProperties)
             {
-                object value = childrenEntityProperty.GetValue(obj);
+                object value = childEntityProperty.GetValue(obj);
                 if (value == null)
                     continue;
 
-                (childId, childTypeName) = ProcessTypeItem(
-                    value,
-                    id,
-                    typeName);
+                ProcessTypeItem(value, childEntityProperty == typeData.ChildWithIdProperty ? null : id);
             }
 
-            if (oneToOneChildrenProperties.Count == 1 && childId != null)
-            {
-                id = childId;
-                typeName = childTypeName;
-            }
-
-            foreach (var childrenEntityProperty in oneToManyChildrenProperties)
+            foreach (var childrenEntityProperty in typeData.ManyChildrenProperties)
             {
                 object value = childrenEntityProperty.GetValue(obj);
                 if (value == null)
@@ -268,14 +264,21 @@ namespace Lykke.Job.BlobToBlobConverter.Services
                     throw new InvalidOperationException($"Couldn't cast value '{value}' of property {childrenEntityProperty.Name} from {typeName} to IEnumerable");
                 foreach (var item in items)
                 {
-                    ProcessTypeItem(
-                        item,
-                        id,
-                        typeName);
+                    ProcessTypeItem(item, id);
                 }
             }
+        }
 
-            return (id, typeName);
+        private string GetIdFromChildren(object obj, TypeData typeData)
+        {
+            if (typeData.ChildWithIdProperty == null)
+                return null;
+
+            var child = typeData.ChildWithIdProperty.GetValue(obj);
+            if (child == null)
+                throw new InvalidOperationException($"Property {typeData.ChildWithIdProperty.Name} with Id can't be null in {obj.ToJson()}");
+
+            return typeData.IdPropertyInChild.GetValue(child)?.ToString();
         }
     }
 }

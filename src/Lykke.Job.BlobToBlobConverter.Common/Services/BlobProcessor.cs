@@ -1,10 +1,12 @@
 ﻿using Common.Log;
+using JetBrains.Annotations;
 using Lykke.Job.BlobToBlobConverter.Common.Abstractions;
 using System;
 using System.Threading.Tasks;
 
 namespace Lykke.Job.BlobToBlobConverter.Common.Services
 {
+    [PublicAPI]
     public class BlobProcessor : IBlobProcessor
     {
         private readonly IBlobReader _blobReader;
