@@ -16,8 +16,8 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Abstractions
 
         Task<string> GetLastSavedBlobAsync();
 
-        Task CreateOrUpdateMappingStructureAsync(Dictionary<string, string> mappingStructure);
+        Task<bool> CreateOrUpdateMappingStructureAsync(Dictionary<string, string> mappingStructure);
 
-        Task CreateOrUpdateTablesStructureAsync(TablesStructure tablesStructure);
+        Task<bool> CreateOrUpdateTablesStructureAsync(TablesStructure tablesStructure);
     }
 }

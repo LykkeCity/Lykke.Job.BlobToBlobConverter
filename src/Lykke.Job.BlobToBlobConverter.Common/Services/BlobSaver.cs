@@ -82,8 +82,9 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
             await SetContentTypeAsync(lastBlob);
         }
 
-        public async Task CreateOrUpdateMappingStructureAsync(Dictionary<string, string> mappingStructure)
+        public async Task<bool> CreateOrUpdateMappingStructureAsync(Dictionary<string, string> mappingStructure)
         {
+            bool structureUpdated = false;
             foreach (var pair in mappingStructure)
             {
                 var fileName = $"{pair.Key}{_structureSuffix}";
@@ -95,15 +96,18 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
                     if (structure == pair.Value)
                         continue;
 
+                    structureUpdated = true;
                     _log.WriteWarning(nameof(CreateOrUpdateMappingStructureAsync), pair.Key, $"Mapping structure is changed from {structure} to {pair.Value}");
                     await blob.DeleteAsync();
                 }
                 await blob.UploadTextAsync(pair.Value, null, _blobRequestOptions, null);
                 await SetContentTypeAsync(blob);
             }
+
+            return structureUpdated;
         }
 
-        public async Task CreateOrUpdateTablesStructureAsync(TablesStructure tablesStructure)
+        public async Task<bool> CreateOrUpdateTablesStructureAsync(TablesStructure tablesStructure)
         {
             string newStructure = tablesStructure.ToJson();
 
@@ -113,13 +117,14 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
             {
                 string structure = await blob.DownloadTextAsync(null, _blobRequestOptions, null);
                 if (structure == newStructure)
-                    return;
+                    return false;
 
                 _log.WriteWarning(nameof(CreateOrUpdateTablesStructureAsync), "Table structure change", $"Table structure is changed from {structure} to {newStructure}");
                 await blob.DeleteAsync();
             }
             await blob.UploadTextAsync(newStructure, null, _blobRequestOptions, null);
             await SetContentTypeAsync(blob);
+            return true;
         }
 
         public async Task SaveToBlobAsync(IEnumerable<string> blocks, string directory, string storagePath)

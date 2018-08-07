@@ -2,6 +2,7 @@
 using JetBrains.Annotations;
 using Lykke.Job.BlobToBlobConverter.Common.Abstractions;
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 
 namespace Lykke.Job.BlobToBlobConverter.Common.Services
@@ -15,6 +16,8 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
         private readonly IMessageProcessor _messageConverter;
         private readonly string _instanceTag;
         private readonly ILog _log;
+
+        private bool _structureUpdated;
 
         public BlobProcessor(
             IBlobReader blobReader,
@@ -48,16 +51,24 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
             _log = log;
 
             var messagesStructure = _structureBuilder.GetMappingStructure();
-            _blobSaver.CreateOrUpdateMappingStructureAsync(messagesStructure).GetAwaiter().GetResult();
+            _structureUpdated = _blobSaver.CreateOrUpdateMappingStructureAsync(messagesStructure).GetAwaiter().GetResult();
 
             var tablesStructure = _structureBuilder.GetTablesStructure();
-            _blobSaver.CreateOrUpdateTablesStructureAsync(tablesStructure).GetAwaiter().GetResult();
+            _structureUpdated = _structureUpdated || _blobSaver.CreateOrUpdateTablesStructureAsync(tablesStructure).GetAwaiter().GetResult();
         }
 
         public async Task ProcessAsync()
         {
-            var lastBlob = await _blobSaver.GetLastSavedBlobAsync();
-            var blobs = await _blobReader.GetBlobsForConversionAsync(lastBlob);
+            List<string> blobs;
+            if (_structureUpdated)
+            {
+                blobs = await _blobReader.GetBlobsForConversionAsync(null);
+            }
+            else
+            {
+                var lastBlob = await _blobSaver.GetLastSavedBlobAsync();
+                blobs = await _blobReader.GetBlobsForConversionAsync(lastBlob);
+            }
             foreach (var blob in blobs)
             {
                 try
