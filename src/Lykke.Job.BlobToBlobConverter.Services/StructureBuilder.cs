@@ -291,7 +291,7 @@ namespace Lykke.Job.BlobToBlobConverter.Services
 
             if (isCollectorNotEmpty(collector))
             {
-                if (parentIdPropertyName != null)
+                if (parentIdPropertyName != null && parentType != type)
                 {
                     var parentIdPropertyInChild = type.GetProperty(parentIdPropertyName);
                     if (parentIdPropertyInChild == null)
