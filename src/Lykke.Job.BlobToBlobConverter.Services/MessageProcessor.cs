@@ -169,7 +169,8 @@ namespace Lykke.Job.BlobToBlobConverter.Services
                 return true;
             }
             success = ProtobufDeserializer.TryDeserialize(data, _messageType, out result);
-            _log.WriteWarning(nameof(TryDeserialize), null, $"Couldn't deserialize message with length {data.Length}");
+            if (!success)
+                _log.WriteWarning(nameof(TryDeserialize), null, $"Couldn't deserialize message with length {data.Length}");
             return success;
         }
 
