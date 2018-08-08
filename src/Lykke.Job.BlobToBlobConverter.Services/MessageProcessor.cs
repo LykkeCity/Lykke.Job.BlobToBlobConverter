@@ -198,8 +198,8 @@ namespace Lykke.Job.BlobToBlobConverter.Services
                     if (valueProperty.Name == _typeInfo.IdPropertyName || valueProperty.Name == idPropertyName)
                     {
                         if (value == null)
-                            throw new InvalidOperationException($"'{valueProperty.Name}' property can't be null");
-                        id = value.ToString();
+                            _log.WriteWarning(nameof(AddValueLevel), obj, $"Id property {valueProperty.Name} of {typeName} is null");
+                        id = value?.ToString() ?? string.Empty;
                     }
                     else
                     {
