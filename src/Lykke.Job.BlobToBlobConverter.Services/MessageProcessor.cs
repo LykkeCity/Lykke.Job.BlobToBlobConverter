@@ -238,14 +238,20 @@ namespace Lykke.Job.BlobToBlobConverter.Services
                 }
 
                 if (parentId != null && !hasParentIdProperty)
+                {
                     sb.Insert(0, $"{parentId},");
+                }
+                else if (sb.Length > 0 && parentType != null && _typeInfo.PropertiesMap[parentType].ValueProperties.Count > 0)
+                {
+                    _log.WriteWarning(
+                        nameof(AddValueLevel),
+                        obj,
+                        $"Message of type {parentType.Name} doesn't have any identificators that can be used to make relations to its children");
+                    sb.Insert(0, ",");
+                }
+
                 if (id != null)
                     sb.Insert(0, $"{id},");
-
-                if (sb.Length > 0 && parentType != null && _typeInfo.PropertiesMap[parentType].ValueProperties.Count > 0
-                    && parentId == null)
-                    throw new InvalidOperationException(
-                        $"Message {obj.ToJson()} must have any identificators that can be used to make relations between its children elements");
 
                 if (_objectsData.ContainsKey(typeName))
                     _objectsData[typeName].Add(sb.ToString());
@@ -260,6 +266,8 @@ namespace Lykke.Job.BlobToBlobConverter.Services
                 id = GetIdFromChildren(obj, typeData);
             if (id == null)
                 id = parentId;
+            if (id == null && typeData.RelationProperty != null)
+                id = typeData.RelationProperty.GetValue(obj)?.ToString();
 
             foreach (var childProperty in typeData.OneChildrenProperties)
             {

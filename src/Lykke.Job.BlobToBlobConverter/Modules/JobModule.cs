@@ -69,7 +69,8 @@ namespace Lykke.Job.BlobToBlobConverter.Modules
                 .WithParameter("nugetPackageName", _settings.NugetPackage)
                 .WithParameter("instanceTag", _instanceTag)
                 .WithParameter("excludedPropertiesMap", _settings.ExcludedPropertiesMap)
-                .WithParameter("idPropertiesMap", _settings.IdPropertiesMap);
+                .WithParameter("idPropertiesMap", _settings.IdPropertiesMap)
+                .WithParameter("relationPropertiesMap", _settings.RelationPropertiesMap);
 
             var messageMode = (MessageMode)Enum.Parse(typeof(MessageMode), _settings.MessageMode);
 

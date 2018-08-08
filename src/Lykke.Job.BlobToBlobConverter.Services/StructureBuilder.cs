@@ -15,6 +15,7 @@ namespace Lykke.Job.BlobToBlobConverter.Services
         private readonly Type _type;
         private readonly Dictionary<string, List<string>> _excludedPropertiesMap;
         private readonly Dictionary<string, string> _idPropertiesMap;
+        private readonly Dictionary<string, string> _relationPropertiesMap;
         private readonly string _instanceTag;
 
         internal static Type[] GenericCollectionTypes { get; } = {
@@ -32,11 +33,13 @@ namespace Lykke.Job.BlobToBlobConverter.Services
             string nugetPackageName,
             string instanceTag,
             Dictionary<string, List<string>> excludedPropertiesMap,
-            Dictionary<string, string> idPropertiesMap)
+            Dictionary<string, string> idPropertiesMap,
+            Dictionary<string, string> relationPropertiesMap)
         {
             _type = typeRetriever.RetrieveTypeAsync(processingType, nugetPackageName).GetAwaiter().GetResult();
-            _excludedPropertiesMap = excludedPropertiesMap;
-            _idPropertiesMap = idPropertiesMap;
+            _excludedPropertiesMap = excludedPropertiesMap ?? new Dictionary<string, List<string>>(0);
+            _idPropertiesMap = idPropertiesMap ?? new Dictionary<string, string>(0);
+            _relationPropertiesMap = relationPropertiesMap ?? new Dictionary<string, string>();
             _instanceTag = instanceTag;
             PropertiesMap = new Dictionary<Type, TypeData>();
         }
@@ -178,6 +181,12 @@ namespace Lykke.Job.BlobToBlobConverter.Services
                 idPropertyName = parentIdPropertyName;
                 idPropertyTypeName = parentIdPropertyTypeName;
             }
+            if (idPropertyName == null && processingresult.RelationProperty != null)
+            {
+                idPropertyName = processingresult.RelationProperty.Name;
+                idPropertyTypeName = processingresult.RelationProperty.PropertyType.Name;
+                PropertiesMap[type].RelationProperty = processingresult.RelationProperty;
+            }
 
             foreach (var childTypePair in processingresult.OneChildrenProperties)
             {
@@ -220,8 +229,9 @@ namespace Lykke.Job.BlobToBlobConverter.Services
             Action<string, TCollector> submitDataFromCollector)
         {
             string typeName = type.Name;
-            var excludedProperties = _excludedPropertiesMap.ContainsKey(typeName) ? _excludedPropertiesMap[typeName] : new List<string>(0);
-            var idPropertyName = _idPropertiesMap.ContainsKey(typeName) ? _idPropertiesMap[typeName] : null;
+            _excludedPropertiesMap.TryGetValue(typeName, out var excludedProperties);
+            _idPropertiesMap.TryGetValue(typeName, out var idPropertyName);
+            _relationPropertiesMap.TryGetValue(typeName, out var relationPropertyName);
             var valueProperties = new List<PropertyInfo>();
             var oneChildrenProperties = new List<(PropertyInfo, Type)>();
             var manyChildrenProperties = new List<(PropertyInfo, Type)>();
@@ -229,9 +239,10 @@ namespace Lykke.Job.BlobToBlobConverter.Services
             var collector = initCollector(typeName, parentType?.Name);
             var topLevelProperties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
             PropertyInfo idProperty = null;
+            PropertyInfo relationProperty = null;
             foreach (var property in topLevelProperties)
             {
-                if (excludedProperties.Contains(property.Name))
+                if (excludedProperties != null && excludedProperties.Contains(property.Name))
                     continue;
 
                 var propertyType = property.PropertyType;
@@ -283,6 +294,8 @@ namespace Lykke.Job.BlobToBlobConverter.Services
                         {
                             propertyTypeName = typeof(string).Name;
                         }
+                        if (property.Name == relationPropertyName)
+                            relationProperty = property;
                         addPropertyInfo(collector, property.Name, propertyTypeName);
                     }
                     valueProperties.Add(property);
@@ -297,6 +310,11 @@ namespace Lykke.Job.BlobToBlobConverter.Services
                     if (parentIdPropertyInChild == null)
                         insertPropertyInfoToStart(collector, parentIdPropertyName, parentIdPropertyTypeName);
                 }
+                else if (valueProperties.Count > 0 && parentType != null && parentType != type
+                    && PropertiesMap[parentType].ValueProperties.Count > 0)
+                    throw new InvalidOperationException(
+                        $"Type {typeName} must have any identificators that can be used to make relations to its parent");
+
                 if (idProperty != null)
                 {
                     idPropertyName = parentType != null && parentType != type && PropertiesMap[parentType].OneChildrenProperties.Count > 1
@@ -306,11 +324,6 @@ namespace Lykke.Job.BlobToBlobConverter.Services
                 }
                 submitDataFromCollector(typeName, collector);
             }
-
-            if (valueProperties.Count > 0 && parentType != null && parentType != type
-                && PropertiesMap[parentType].ValueProperties.Count > 0 && parentIdPropertyName == null)
-                throw new InvalidOperationException(
-                    $"Type {typeName} must have any identificators that can be used to make relations between its children elements");
 
             if (!PropertiesMap.ContainsKey(type))
                 PropertiesMap.Add(
@@ -326,6 +339,7 @@ namespace Lykke.Job.BlobToBlobConverter.Services
             return new PropertiesProcessingResult
             {
                 IdProperty = idProperty,
+                RelationProperty = relationProperty,
                 ValueProperties = valueProperties,
                 OneChildrenProperties = oneChildrenProperties,
                 ManyChildrenProperties = manyChildrenProperties.Select(i => i.Item2).ToList(),
@@ -335,7 +349,7 @@ namespace Lykke.Job.BlobToBlobConverter.Services
         private (Type, PropertyInfo) GetIdPropertyTypeName(Type type)
         {
             string typeName = type.Name;
-            var idPropertyName = _idPropertiesMap.ContainsKey(typeName) ? _idPropertiesMap[typeName] : null;
+            _idPropertiesMap.TryGetValue(typeName, out var idPropertyName);
             var topLevelProperties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
             foreach (var property in topLevelProperties)
             {

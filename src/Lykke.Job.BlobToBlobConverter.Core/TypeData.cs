@@ -11,5 +11,6 @@ namespace Lykke.Job.BlobToBlobConverter.Core
         public string ParentIdPropertyName { get; set; }
         public PropertyInfo ChildWithIdProperty { get; set; }
         public PropertyInfo IdPropertyInChild { get; set; }
+        public PropertyInfo RelationProperty { get; set; }
     }
 }
