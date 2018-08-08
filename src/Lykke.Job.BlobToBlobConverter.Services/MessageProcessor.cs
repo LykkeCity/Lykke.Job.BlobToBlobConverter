@@ -96,7 +96,7 @@ namespace Lykke.Job.BlobToBlobConverter.Services
             }
             catch (Exception ex)
             {
-                _log.WriteError(nameof(TryProcessMessageAsync), _type, ex);
+                _log.WriteError(nameof(TryProcessMessageAsync), obj, ex);
                 if (_skipCorrupted)
                     _log.WriteWarning(nameof(TryProcessMessageAsync), obj, "Skipped corrupted message");
                 else
