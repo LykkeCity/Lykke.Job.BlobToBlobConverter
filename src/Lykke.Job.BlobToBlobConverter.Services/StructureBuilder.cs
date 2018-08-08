@@ -54,6 +54,7 @@ namespace Lykke.Job.BlobToBlobConverter.Services
                 _type,
                 null,
                 null,
+                null,
                 (t, pt) => new StringBuilder(),
                 (sb, n, t) =>
                 {
@@ -76,6 +77,7 @@ namespace Lykke.Job.BlobToBlobConverter.Services
                 _type,
                 null,
                 null,
+                null,
                 (t, pt) => new TableStructure
                 {
                     TableName = string.IsNullOrWhiteSpace(pt)
@@ -95,7 +97,8 @@ namespace Lykke.Job.BlobToBlobConverter.Services
         private void AddStructureLevel<TCollector>(
             Type type,
             Type parentType,
-            PropertyInfo parentIdProperty,
+            string parentIdPropertyName,
+            string parentIdPropertyTypeName,
             Func<string, string, TCollector> initCollector,
             Action<TCollector, string, string> addPropertyInfo,
             Action<TCollector, string, string> insertPropertyInfoToStart,
@@ -105,7 +108,8 @@ namespace Lykke.Job.BlobToBlobConverter.Services
             var processingresult = ProcessProperties(
                 type,
                 parentType,
-                parentIdProperty,
+                parentIdPropertyName,
+                parentIdPropertyTypeName,
                 initCollector,
                 addPropertyInfo,
                 insertPropertyInfoToStart,
@@ -116,12 +120,13 @@ namespace Lykke.Job.BlobToBlobConverter.Services
                 return;
 
             Type typeForChildren = type;
-            PropertyInfo idProperty = processingresult.IdProperty;
+            string idPropertyName = processingresult.IdProperty?.Name;
+            string idPropertyTypeName = processingresult.IdProperty?.PropertyType.Name;
 
             if (parentType != null && processingresult.ValueProperties.Count == 0)
                 typeForChildren = parentType;
 
-            if (idProperty == null)
+            if (idPropertyName == null)
             {
                 bool idWasFoundInChildren = false;
                 Type childWithIdType = null;
@@ -151,24 +156,36 @@ namespace Lykke.Job.BlobToBlobConverter.Services
 
                 if (idPropertyInChild != null)
                 {
-                    idProperty = idPropertyInChild;
+                    idPropertyName = idPropertyInChild.Name;
+                    idPropertyTypeName = idPropertyInChild.PropertyType.Name;
                     if (idPropertyInChild.Name == IdPropertyName)
+                    {
                         typeForChildren = childWithIdType;
+                        idPropertyName = $"{childWithIdType.Name}{IdPropertyName}";
+                    }
                     var typeData = PropertiesMap[type];
                     typeData.ChildWithIdProperty = childWithIdProperty;
                     typeData.IdPropertyInChild = idPropertyInChild;
                 }
             }
+            else
+            {
+                idPropertyName = $"{typeForChildren.Name}{IdPropertyName}";
+            }
 
-            if (idProperty == null)
-                idProperty = parentIdProperty;
+            if (idPropertyName == null)
+            {
+                idPropertyName = parentIdPropertyName;
+                idPropertyTypeName = parentIdPropertyTypeName;
+            }
 
             foreach (var childTypePair in processingresult.OneChildrenProperties)
             {
                 AddStructureLevel(
                     childTypePair.Item2,
                     typeForChildren,
-                    idProperty,
+                    idPropertyName,
+                    idPropertyTypeName,
                     initCollector,
                     addPropertyInfo,
                     insertPropertyInfoToStart,
@@ -181,7 +198,8 @@ namespace Lykke.Job.BlobToBlobConverter.Services
                 AddStructureLevel(
                     childType,
                     typeForChildren,
-                    idProperty,
+                    idPropertyName,
+                    idPropertyTypeName,
                     initCollector,
                     addPropertyInfo,
                     insertPropertyInfoToStart,
@@ -193,7 +211,8 @@ namespace Lykke.Job.BlobToBlobConverter.Services
         private PropertiesProcessingResult ProcessProperties<TCollector>(
             Type type,
             Type parentType,
-            PropertyInfo parentIdProperty,
+            string parentIdPropertyName,
+            string parentIdPropertyTypeName,
             Func<string, string, TCollector> initCollector,
             Action<TCollector, string, string> addPropertyInfo,
             Action<TCollector, string, string> insertPropertyInfoToStart,
@@ -272,20 +291,24 @@ namespace Lykke.Job.BlobToBlobConverter.Services
 
             if (isCollectorNotEmpty(collector))
             {
-                if (parentIdProperty != null && parentIdProperty.DeclaringType != type && parentType != null)
+                if (parentIdPropertyName != null)
                 {
-                    var parentIdPropertyName = parentIdProperty.Name == IdPropertyName ? $"{parentType.Name}{IdPropertyName}" : parentIdProperty.Name;
                     var parentIdPropertyInChild = type.GetProperty(parentIdPropertyName);
                     if (parentIdPropertyInChild == null)
-                        insertPropertyInfoToStart(collector, parentIdPropertyName, parentIdProperty.PropertyType.Name);
+                        insertPropertyInfoToStart(collector, parentIdPropertyName, parentIdPropertyTypeName);
                 }
                 if (idProperty != null)
-                    insertPropertyInfoToStart(collector, idPropertyName ?? IdPropertyName, idProperty.PropertyType.Name);
+                {
+                    idPropertyName = parentType != null && parentType != type && PropertiesMap[parentType].OneChildrenProperties.Count > 1
+                        ? idProperty.Name
+                        : IdPropertyName;
+                    insertPropertyInfoToStart(collector, idPropertyName, idProperty.PropertyType.Name);
+                }
                 submitDataFromCollector(typeName, collector);
             }
 
             if (valueProperties.Count > 0 && parentType != null && parentType != type
-                && PropertiesMap[parentType].ValueProperties.Count > 0 && parentIdProperty == null)
+                && PropertiesMap[parentType].ValueProperties.Count > 0 && parentIdPropertyName == null)
                 throw new InvalidOperationException(
                     $"Type {typeName} must have any identificators that can be used to make relations between its children elements");
 
@@ -297,7 +320,7 @@ namespace Lykke.Job.BlobToBlobConverter.Services
                         ValueProperties = valueProperties,
                         OneChildrenProperties = oneChildrenProperties.Select(i => i.Item1).ToList(),
                         ManyChildrenProperties = manyChildrenProperties.Select(i => i.Item1).ToList(),
-                        ParentIdProperty = parentIdProperty,
+                        ParentIdPropertyName = parentIdPropertyName,
                     });
 
             return new PropertiesProcessingResult

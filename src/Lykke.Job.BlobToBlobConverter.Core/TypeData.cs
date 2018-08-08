@@ -8,7 +8,7 @@ namespace Lykke.Job.BlobToBlobConverter.Core
         public List<PropertyInfo> ValueProperties { get; set; }
         public List<PropertyInfo> OneChildrenProperties { get; set; }
         public List<PropertyInfo> ManyChildrenProperties { get; set; }
-        public PropertyInfo ParentIdProperty { get; set; }
+        public string ParentIdPropertyName { get; set; }
         public PropertyInfo ChildWithIdProperty { get; set; }
         public PropertyInfo IdPropertyInChild { get; set; }
     }
