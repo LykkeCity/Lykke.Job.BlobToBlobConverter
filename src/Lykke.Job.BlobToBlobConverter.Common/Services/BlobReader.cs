@@ -29,7 +29,7 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
             ServerTimeout = TimeSpan.FromMinutes(60)
         };
         private readonly ILog _log;
-        private readonly byte[] _eolBytes = Encoding.UTF8.GetBytes("\r\n\r\n");
+        private readonly byte[] _separationPatternBytes = Encoding.UTF8.GetBytes("\r\n\r\n");
 
         public BlobReader(
             string container,
@@ -95,7 +95,7 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
 
                 int lastEolIndex = -1;
                 int filledCount = Math.Min(arrayLength, writeStart + readCount);
-                for (int i = _eolBytes.Length - 1; i < filledCount; ++i)
+                for (int i = _separationPatternBytes.Length - 1; i < filledCount; ++i)
                 {
                     (bool eolFound, int seekStep) = FindEolPattern(buffer, i);
                     if (!eolFound)
@@ -105,7 +105,7 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
                         continue;
                     }
 
-                    int chunkSize = i - lastEolIndex - _eolBytes.Length;
+                    int chunkSize = i - lastEolIndex - _separationPatternBytes.Length;
                     if (chunkSize == 0)
                         continue;
 
@@ -168,15 +168,15 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
 
         private (bool, int) FindEolPattern(byte[] buffer, int pos)
         {
-            int startPos = pos - _eolBytes.Length + 1;
-            for (int i = _eolBytes.Length - 1; i >= 0; --i)
+            int startPos = pos - _separationPatternBytes.Length + 1;
+            for (int i = _separationPatternBytes.Length - 1; i >= 0; --i)
             {
-                if (buffer[startPos + i] != _eolBytes[i])
+                if (buffer[startPos + i] != _separationPatternBytes[i])
                 {
                     int nextStep = 1;
-                    for (int j = 1; j < _eolBytes.Length; ++j)
+                    for (int j = 1; j < _separationPatternBytes.Length; ++j)
                     {
-                        if (buffer[startPos + j] != _eolBytes[0])
+                        if (buffer[startPos + j] != _separationPatternBytes[0])
                             ++nextStep;
                         else
                             return (false, nextStep);
