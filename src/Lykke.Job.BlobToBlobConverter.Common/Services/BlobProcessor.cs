@@ -91,7 +91,8 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
                     throw;
                 }
             }
-            _log.WriteInfo(nameof(BlobProcessor), nameof(ProcessAsync), $"Processed {blobs.Count} blobs");
+            if (blobs.Count > 0)
+                _log.WriteInfo(nameof(BlobProcessor), nameof(ProcessAsync), $"Processed {blobs.Count} blobs");
         }
     }
 }
