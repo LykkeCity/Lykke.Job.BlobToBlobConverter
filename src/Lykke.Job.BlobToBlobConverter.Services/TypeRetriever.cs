@@ -15,7 +15,7 @@ using System.Threading.Tasks;
 
 namespace Lykke.Job.BlobToBlobConverter.Services
 {
-    public partial class TypeRetriever : ITypeRetriever
+    public class TypeRetriever : ITypeRetriever
     {
         private const string _libsDir = "libs";
         private const string _dllExtension = ".dll";
@@ -25,7 +25,6 @@ namespace Lykke.Job.BlobToBlobConverter.Services
         private readonly PackageMetadataResource _packageMetadataResource;
         private readonly DownloadResource _downloadResource;
         private readonly PackageDownloadContext _packageDownloadContext;
-        private readonly SourceCacheContext _sourceCacheContext;
         private readonly NugetLogger _nugetLogger;
         private readonly string _downloadDirectory;
         private readonly ConcurrentDictionary<string, Type> _resolvedTypes = new ConcurrentDictionary<string, Type>();
@@ -41,13 +40,12 @@ namespace Lykke.Job.BlobToBlobConverter.Services
 
             string workingDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
             _downloadDirectory = Path.Combine(workingDir, _libsDir);
-            _sourceCacheContext = new SourceCacheContext
-            {
-                NoCache = true,
-                DirectDownload = true,
-            };
             _packageDownloadContext = new PackageDownloadContext(
-                _sourceCacheContext,
+                new SourceCacheContext
+                {
+                    NoCache = true,
+                    DirectDownload = true,
+                },
                 _downloadDirectory,
                 true);
             _nugetLogger = new NugetLogger(log);

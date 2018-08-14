@@ -63,6 +63,7 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
             if (_structureUpdated)
             {
                 blobs = await _blobReader.GetBlobsForConversionAsync(null);
+                _structureUpdated = false;
             }
             else
             {

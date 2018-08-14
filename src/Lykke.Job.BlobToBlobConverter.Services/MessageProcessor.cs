@@ -120,8 +120,7 @@ namespace Lykke.Job.BlobToBlobConverter.Services
             Type parentType,
             string parentId)
         {
-            var items = obj as IEnumerable;
-            if (items != null)
+            if (obj is IEnumerable items)
             {
                 foreach (var item in items)
                 {

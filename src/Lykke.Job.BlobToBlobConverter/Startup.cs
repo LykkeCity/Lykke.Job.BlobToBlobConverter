@@ -1,9 +1,8 @@
-﻿using System;
-using System.Threading.Tasks;
-using Autofac;
+﻿using Autofac;
 using Autofac.Extensions.DependencyInjection;
 using AzureStorage.Tables;
 using Common.Log;
+using Lykke.Common;
 using Lykke.Common.ApiLibrary.Middleware;
 using Lykke.Common.ApiLibrary.Swagger;
 using Lykke.Common.Api.Contract.Responses;
@@ -20,6 +19,8 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using System;
+using System.Threading.Tasks;
 
 namespace Lykke.Job.BlobToBlobConverter
 {
@@ -59,17 +60,26 @@ namespace Lykke.Job.BlobToBlobConverter
                 });
 
                 var builder = new ContainerBuilder();
-                var appSettings = Configuration.LoadSettings<AppSettings>();
-                if (appSettings.CurrentValue.MonitoringServiceClient != null)
-                    _monitoringServiceUrl = appSettings.CurrentValue.MonitoringServiceClient.MonitoringServiceUrl;
+                var settingsManager = Configuration.LoadSettings<AppSettings>();
 
-                Log = CreateLogWithSlack(services, appSettings);
+                var appSettings = settingsManager.CurrentValue;
+
+                Configuration.CheckDependenciesAsync(
+                    appSettings,
+                    appSettings.SlackNotifications.AzureQueue.ConnectionString,
+                    appSettings.SlackNotifications.AzureQueue.QueueName,
+                    $"{AppEnvironment.Name} {AppEnvironment.Version}");
+
+                if (appSettings.MonitoringServiceClient != null)
+                    _monitoringServiceUrl = appSettings.MonitoringServiceClient.MonitoringServiceUrl;
+
+                Log = CreateLogWithSlack(services, settingsManager);
 
                 string instanceTag = Configuration["InstanceTag"];
                 if (!string.IsNullOrWhiteSpace(instanceTag))
                     Log.WriteInfo(nameof(ConfigureServices), null, $"Using instance tag - {instanceTag}");
 
-                builder.RegisterModule(new JobModule(appSettings.CurrentValue.BlobToBlobConverterJob, Log, instanceTag));
+                builder.RegisterModule(new JobModule(appSettings.BlobToBlobConverterJob, Log, instanceTag));
 
                 builder.Populate(services);
 
