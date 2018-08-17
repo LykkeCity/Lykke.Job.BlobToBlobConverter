@@ -13,33 +13,21 @@ BlobToBlobConverterJob:
             - AzureTableStorage
     InputContainer:
         settings-key: BlobToBlobConverterJob-InputContainer
-        types:
-            - Tag
     BlobScanPeriod:
         settings-key: BlobToBlobConverterJob-BlobScanPeriod
-        types:
-            - Tag
     ProcessingType:
         settings-key: BlobToBlobConverterJob-ProcessingType
-        types:
-            - Tag
     MessageMode:
         settings-key: BlobToBlobConverterJob-MessageMode
-        types:
-            - Tag
     NugetPackage:
         settings-key: BlobToBlobConverterJob-NugetPackage
-        types:
-            - Tag
     ExcludedPropertiesMap:
         settings-key: BlobToBlobConverterJob-ExcludedPropertiesMap
         types:
-            - Tag
             - Json
     IdPropertiesMap:
         settings-key: BlobToBlobConverterJob-IdPropertiesMap
         types:
-            - Tag
             - Json
 
 MonitoringServiceClient:
