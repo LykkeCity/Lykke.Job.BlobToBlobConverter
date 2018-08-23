@@ -60,15 +60,14 @@ namespace Lykke.Job.BlobToBlobConverter
                 });
 
                 var builder = new ContainerBuilder();
-                var settingsManager = Configuration.LoadSettings<AppSettings>();
+                var settingsManager = Configuration.LoadSettings<AppSettings>(o =>
+                    {
+                        o.SetConnString(s => s.SlackNotifications.AzureQueue.ConnectionString);
+                        o.SetQueueName(s => s.SlackNotifications.AzureQueue.QueueName);
+                        o.SenderName = $"{AppEnvironment.Name} {AppEnvironment.Version}";
+                    });
 
                 var appSettings = settingsManager.CurrentValue;
-
-                Configuration.CheckDependenciesAsync(
-                    appSettings,
-                    appSettings.SlackNotifications.AzureQueue.ConnectionString,
-                    appSettings.SlackNotifications.AzureQueue.QueueName,
-                    $"{AppEnvironment.Name} {AppEnvironment.Version}");
 
                 if (appSettings.MonitoringServiceClient != null)
                     _monitoringServiceUrl = appSettings.MonitoringServiceClient.MonitoringServiceUrl;
@@ -120,7 +119,7 @@ namespace Lykke.Job.BlobToBlobConverter
 
                 appLifetime.ApplicationStarted.Register(() => StartApplication().GetAwaiter().GetResult());
                 appLifetime.ApplicationStopping.Register(() => StopApplication().GetAwaiter().GetResult());
-                appLifetime.ApplicationStopped.Register(() => CleanUp());
+                appLifetime.ApplicationStopped.Register(CleanUp);
             }
             catch (Exception ex)
             {
@@ -161,10 +160,7 @@ namespace Lykke.Job.BlobToBlobConverter
             }
             catch (Exception ex)
             {
-                if (Log != null)
-                {
-                    Log.WriteFatalError(nameof(Startup), nameof(StopApplication), ex);
-                }
+                Log?.WriteFatalError(nameof(Startup), nameof(StopApplication), ex);
                 throw;
             }
         }
@@ -173,10 +169,7 @@ namespace Lykke.Job.BlobToBlobConverter
         {
             try
             {
-                if (Log != null)
-                {
-                    Log.WriteMonitor("", Program.EnvInfo, "Terminating");
-                }
+                Log?.WriteMonitor("", Program.EnvInfo, "Terminating");
 
                 ApplicationContainer.Dispose();
             }

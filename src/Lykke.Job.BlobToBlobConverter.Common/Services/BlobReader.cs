@@ -17,6 +17,7 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
     [PublicAPI]
     public class BlobReader : IBlobReader
     {
+        private const int _maxUnprocessedPatternsCount = 50;
         private const int _blobBlockSize = 4 * 1024 * 1024; // 4 Mb
         private const string _compressedKey = "compressed";
 
@@ -59,7 +60,9 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
                         .Where(i => string.IsNullOrWhiteSpace(lastBlob) || i.CompareTo(lastBlob) > 0));
             } while (continuationToken != null);
 
-            var result = blobs.OrderBy(i => i).Take(blobs.Count - 1).ToList();
+            var result = blobs.OrderBy(i => i)
+                .Take(blobs.Count - 1)
+                .ToList();
             return result;
         }
 
@@ -74,7 +77,6 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
             long blobPosition = 0;
             int arrayLength = _blobBlockSize;
             var buffer = new byte[arrayLength];
-            bool facedErrorOnUnpack = false;
             int writeStart = 0;
             do
             {
@@ -93,62 +95,15 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
                     break;
                 }
 
-                int lastEolIndex = -1;
                 int filledCount = Math.Min(arrayLength, writeStart + readCount);
-                for (int i = _separationPatternBytes.Length - 1; i < filledCount; ++i)
-                {
-                    (bool eolFound, int seekStep) = FindEolPattern(buffer, i);
-                    if (!eolFound)
-                    {
-                        if (seekStep > 1)
-                            i += seekStep - 1;
-                        continue;
-                    }
 
-                    int chunkSize = i - lastEolIndex - _separationPatternBytes.Length;
-                    if (chunkSize == 0)
-                        continue;
+                int lastReadIndex = await ProcessBufferAsync(
+                    buffer,
+                    filledCount,
+                    isBlobCompressed,
+                    messageProcessor);
 
-                    var chunk = new byte[chunkSize];
-                    Array.Copy(buffer, lastEolIndex + 1, chunk, 0, chunkSize);
-                    if (isBlobCompressed)
-                    {
-                        try
-                        {
-                            using (MemoryStream comp = new MemoryStream(chunk))
-                            {
-                                using (MemoryStream decomp = new MemoryStream())
-                                {
-                                    using (GZipStream gzip = new GZipStream(comp, CompressionMode.Decompress))
-                                    {
-                                        gzip.CopyTo(decomp);
-                                    }
-                                    chunk = decomp.ToArray();
-                                }
-                            }
-                            if (facedErrorOnUnpack)
-                                facedErrorOnUnpack = false;
-                        }
-                        catch (InvalidDataException ex)
-                        {
-                            if (facedErrorOnUnpack)
-                                throw;
-                            _log.WriteError(nameof(ReadAndProcessBlobAsync), null, ex);
-                            chunk = null;
-                            facedErrorOnUnpack = true;
-                        }
-                    }
-                    if (chunk != null)
-                    {
-                        bool isCorrectChunk = await messageProcessor.TryProcessMessageAsync(chunk);
-                        if (!isCorrectChunk)
-                            continue;
-                    }
-
-                    lastEolIndex = i;
-                }
-
-                if (lastEolIndex == -1)
+                if (lastReadIndex == -1)
                 {
                     writeStart = arrayLength;
                     arrayLength *= 2;
@@ -156,14 +111,93 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
                 }
                 else
                 {
-                    int chunkSize = filledCount - lastEolIndex - 1;
-                    Array.Copy(buffer, lastEolIndex + 1, buffer, 0, chunkSize);
+                    int chunkSize = filledCount - lastReadIndex - 1;
+                    Array.Copy(buffer, lastReadIndex + 1, buffer, 0, chunkSize);
                     writeStart = chunkSize;
                 }
 
                 blobPosition += readCount;
             }
             while (blobPosition < blobSize);
+        }
+
+        private async Task<int> ProcessBufferAsync(
+            byte[] buffer,
+            int filledCount,
+            bool isBlobCompressed,
+            IMessageProcessor messageProcessor)
+        {
+            var eolIndexes = new List<int> {-1};
+            for (int i = _separationPatternBytes.Length - 1; i < filledCount; ++i)
+            {
+                (bool eolFound, int seekStep) = FindEolPattern(buffer, i);
+                if (!eolFound)
+                {
+                    if (seekStep > 1)
+                        i += seekStep - 1;
+                    continue;
+                }
+
+                bool foundCorrectChunk = false;
+                for (int j = 0; j < eolIndexes.Count; ++j)
+                {
+                    int eolIndex = eolIndexes[j];
+                    int chunkSize = i - eolIndex - _separationPatternBytes.Length;
+                    if (chunkSize == 0)
+                        continue;
+
+                    var chunk = new byte[chunkSize];
+                    Array.Copy(buffer, eolIndex + 1, chunk, 0, chunkSize);
+                    if (isBlobCompressed)
+                    {
+                        chunk = UnpackMessage(chunk);
+                        if (chunk == null)
+                            continue;
+                    }
+
+                    foundCorrectChunk = await messageProcessor.TryProcessMessageAsync(chunk);
+                    if (foundCorrectChunk)
+                    {
+                        if (j > 0)
+                            _log.WriteWarning(
+                                nameof(ProcessBufferAsync),
+                                null,
+                                $"Couldn't process message(s). Skipped {eolIndex - eolIndexes[0]} bytes with {j} patterns.");
+                        break;
+                    }
+                }
+
+                if (foundCorrectChunk)
+                    eolIndexes.Clear();
+                eolIndexes.Add(i);
+                if (eolIndexes.Count >= _maxUnprocessedPatternsCount)
+                    throw new InvalidOperationException($"Couldn't properly process blob - {eolIndexes.Count} unprocessed patterns.");
+            }
+
+            return eolIndexes[0];
+        }
+
+        private byte[] UnpackMessage(byte[] chunk)
+        {
+            try
+            {
+                using (MemoryStream comp = new MemoryStream(chunk))
+                {
+                    using (MemoryStream decomp = new MemoryStream())
+                    {
+                        using (GZipStream gzip = new GZipStream(comp, CompressionMode.Decompress))
+                        {
+                            gzip.CopyTo(decomp);
+                        }
+                        return decomp.ToArray();
+                    }
+                }
+            }
+            catch (InvalidDataException ex)
+            {
+                _log.WriteInfo(nameof(ReadAndProcessBlobAsync), null, ex.Message);
+                return null;
+            }
         }
 
         private (bool, int) FindEolPattern(byte[] buffer, int pos)
