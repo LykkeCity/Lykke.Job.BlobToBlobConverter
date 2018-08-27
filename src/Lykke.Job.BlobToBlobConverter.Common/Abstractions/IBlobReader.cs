@@ -7,6 +7,6 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Abstractions
     {
         Task<List<string>> GetBlobsForConversionAsync(string lastBlob);
 
-        Task ReadAndProcessBlobAsync(string blobName, IMessageProcessor messageProcessor);
+        Task ReadAndProcessBlobAsync(string blobName);
     }
 }

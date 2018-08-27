@@ -29,12 +29,15 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
             MaximumExecutionTime = TimeSpan.FromMinutes(60),
             ServerTimeout = TimeSpan.FromMinutes(60)
         };
+
+        private readonly IMessageProcessor _messageProcessor;
         private readonly ILog _log;
         private readonly byte[] _separationPatternBytes = Encoding.UTF8.GetBytes("\r\n\r\n");
 
         public BlobReader(
             string container,
             string blobConnectionString,
+            IMessageProcessor messageProcessor,
             ILog log)
         {
             _container = container.ToLower();
@@ -43,6 +46,7 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
             bool containerExists = _blobContainer.ExistsAsync().GetAwaiter().GetResult();
             if (!containerExists)
                 throw new InvalidOperationException($"Container {_container} doesn't exist!");
+            _messageProcessor = messageProcessor;
             _log = log;
         }
 
@@ -66,7 +70,7 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
             return result;
         }
 
-        public async Task ReadAndProcessBlobAsync(string blobName, IMessageProcessor messageProcessor)
+        public async Task ReadAndProcessBlobAsync(string blobName)
         {
             var blob = _blobContainer.GetAppendBlobReference(blobName);
             await blob.FetchAttributesAsync();
@@ -100,8 +104,7 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
                 int lastReadIndex = await ProcessBufferAsync(
                     buffer,
                     filledCount,
-                    isBlobCompressed,
-                    messageProcessor);
+                    isBlobCompressed);
 
                 if (lastReadIndex == -1)
                 {
@@ -124,8 +127,7 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
         private async Task<int> ProcessBufferAsync(
             byte[] buffer,
             int filledCount,
-            bool isBlobCompressed,
-            IMessageProcessor messageProcessor)
+            bool isBlobCompressed)
         {
             var eolIndexes = new List<int> {-1};
             for (int i = _separationPatternBytes.Length - 1; i < filledCount; ++i)
@@ -155,7 +157,7 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
                             continue;
                     }
 
-                    foundCorrectChunk = await messageProcessor.TryProcessMessageAsync(chunk);
+                    foundCorrectChunk = await _messageProcessor.TryProcessMessageAsync(chunk);
                     if (foundCorrectChunk)
                     {
                         if (j > 0)

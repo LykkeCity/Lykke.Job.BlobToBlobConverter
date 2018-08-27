@@ -70,30 +70,31 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
                 var lastBlob = await _blobSaver.GetLastSavedBlobAsync();
                 blobs = await _blobReader.GetBlobsForConversionAsync(lastBlob);
             }
+
             foreach (var blob in blobs)
             {
                 try
                 {
-                    _log.WriteInfo(nameof(BlobProcessor), nameof(ProcessAsync), $"Processing {blob}");
+                    _log.WriteInfo("BlobProcessor.ProcessAsync", _instanceTag, $"Processing {blob}");
 
                     _blobSaver.StartBlobProcessing();
-                    _messageConverter.StartBlobProcessing((container, messages) => _blobSaver.SaveToBlobAsync(messages, container, blob));
+                    _messageConverter.StartBlobProcessing((directory, messages) => _blobSaver.SaveToBlobAsync(messages, directory, blob));
 
-                    await _blobReader.ReadAndProcessBlobAsync(blob, _messageConverter);
+                    await _blobReader.ReadAndProcessBlobAsync(blob);
 
                     await _messageConverter.FinishBlobProcessingAsync();
                     await _blobSaver.FinishBlobProcessingAsync(blob);
 
-                    _log.WriteInfo(nameof(BlobProcessor), nameof(ProcessAsync), $"Processed {blob}");
+                    _log.WriteInfo("BlobProcessor.ProcessAsync", _instanceTag, $"Processed {blob}");
                 }
                 catch (Exception ex)
                 {
-                    _log.WriteError("BlobProcessor.ProcessAsync", string.IsNullOrEmpty(_instanceTag) ? blob : $"{_instanceTag}:{blob}", ex);
+                    _log.WriteError("BlobProcessor.ProcessAsync", string.IsNullOrWhiteSpace(_instanceTag) ? blob : $"{_instanceTag}:{blob}", ex);
                     throw;
                 }
             }
             if (blobs.Count > 0)
-                _log.WriteInfo(nameof(BlobProcessor), nameof(ProcessAsync), $"Processed {blobs.Count} blobs");
+                _log.WriteInfo("BlobProcessor.ProcessAsync", _instanceTag, $"Processed {blobs.Count} blobs");
         }
     }
 }
