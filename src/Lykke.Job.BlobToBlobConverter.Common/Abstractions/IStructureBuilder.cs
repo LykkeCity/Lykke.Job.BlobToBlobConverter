@@ -1,10 +1,10 @@
-﻿using System.Collections.Generic;
-
-namespace Lykke.Job.BlobToBlobConverter.Common.Abstractions
+﻿namespace Lykke.Job.BlobToBlobConverter.Common.Abstractions
 {
     public interface IStructureBuilder
     {
-        Dictionary<string, string> GetMappingStructure();
+        bool IsDynamicStructure { get; }
+
+        bool IsAllBlobsReprocessingRequired(TablesStructure currentStructure);
 
         TablesStructure GetTablesStructure();
     }

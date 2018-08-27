@@ -18,7 +18,6 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
     public class BlobSaver : IBlobSaver
     {
         private const string _lastBlobFile = "lastblob.txt";
-        private const string _structureSuffix = ".str";
         private const string _tablesStructureFileName = "TableStructure.str2";
         private const int _maxBlockSize = 100 * 1024 * 1024; // 100Mb
 
@@ -82,31 +81,6 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
             await SetContentTypeAsync(lastBlob);
         }
 
-        public async Task<bool> CreateOrUpdateMappingStructureAsync(Dictionary<string, string> mappingStructure)
-        {
-            bool structureUpdated = false;
-            foreach (var pair in mappingStructure)
-            {
-                var fileName = $"{pair.Key}{_structureSuffix}";
-                var blob = _blobContainer.GetBlockBlobReference(fileName);
-                bool exists = await blob.ExistsAsync();
-                if (exists)
-                {
-                    string structure = await blob.DownloadTextAsync(null, _blobRequestOptions, null);
-                    if (structure == pair.Value)
-                        continue;
-
-                    structureUpdated = true;
-                    _log.WriteWarning(nameof(CreateOrUpdateMappingStructureAsync), pair.Key, $"Mapping structure is changed from {structure} to {pair.Value}");
-                    await blob.DeleteAsync();
-                }
-                await blob.UploadTextAsync(pair.Value, null, _blobRequestOptions, null);
-                await SetContentTypeAsync(blob);
-            }
-
-            return structureUpdated;
-        }
-
         public async Task<bool> CreateOrUpdateTablesStructureAsync(TablesStructure tablesStructure)
         {
             string newStructure = tablesStructure.ToJson();
@@ -125,6 +99,17 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
             await blob.UploadTextAsync(newStructure, null, _blobRequestOptions, null);
             await SetContentTypeAsync(blob);
             return true;
+        }
+
+        public async Task<TablesStructure> ReadTablesStructureAsync()
+        {
+            var blob = _blobContainer.GetBlockBlobReference(_tablesStructureFileName);
+            if (!await blob.ExistsAsync())
+                return null;
+
+            string structureStr = await blob.DownloadTextAsync(null, _blobRequestOptions, null);
+
+            return structureStr.DeserializeJson<TablesStructure>();
         }
 
         public async Task SaveToBlobAsync(IEnumerable<string> blocks, string directory, string storagePath)

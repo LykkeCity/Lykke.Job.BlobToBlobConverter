@@ -17,7 +17,7 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
         private readonly string _instanceTag;
         private readonly ILog _log;
 
-        private bool _structureUpdated;
+        private bool _allBlobsReprocessingRequired;
 
         public BlobProcessor(
             IBlobReader blobReader,
@@ -50,20 +50,25 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
             _instanceTag = instanceTag;
             _log = log;
 
-            var messagesStructure = _structureBuilder.GetMappingStructure();
-            _structureUpdated = _blobSaver.CreateOrUpdateMappingStructureAsync(messagesStructure).GetAwaiter().GetResult();
-
-            var tablesStructure = _structureBuilder.GetTablesStructure();
-            _structureUpdated = _structureUpdated || _blobSaver.CreateOrUpdateTablesStructureAsync(tablesStructure).GetAwaiter().GetResult();
+            if (_structureBuilder.IsDynamicStructure)
+            {
+                var tablesStructure = _blobSaver.ReadTablesStructureAsync().GetAwaiter().GetResult();
+                _allBlobsReprocessingRequired = _structureBuilder.IsAllBlobsReprocessingRequired(tablesStructure);
+            }
+            else
+            {
+                var tablesStructure = _structureBuilder.GetTablesStructure();
+                _allBlobsReprocessingRequired = _blobSaver.CreateOrUpdateTablesStructureAsync(tablesStructure).GetAwaiter().GetResult();
+            }
         }
 
         public async Task ProcessAsync()
         {
             List<string> blobs;
-            if (_structureUpdated)
+            if (_allBlobsReprocessingRequired)
             {
                 blobs = await _blobReader.GetBlobsForConversionAsync(null);
-                _structureUpdated = false;
+                _allBlobsReprocessingRequired = false;
             }
             else
             {
