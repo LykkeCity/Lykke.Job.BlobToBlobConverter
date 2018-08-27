@@ -67,6 +67,7 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
             List<string> blobs;
             if (_allBlobsReprocessingRequired)
             {
+                _log.WriteInfo("BlobProcessor.ProcessAsync", _instanceTag, $"All blobs will be reprocessed");
                 blobs = await _blobReader.GetBlobsForConversionAsync(null);
                 _allBlobsReprocessingRequired = false;
             }
