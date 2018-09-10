@@ -21,6 +21,7 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
         private const int _blobBlockSize = 4 * 1024 * 1024; // 4 Mb
         private const int _maxBlobBlockSize = 100 * 1024 * 1024; // 100 Mb
         private const string _compressedKey = "compressed";
+        private const string _newFormatKey = "NewFormat";
 
         private readonly string _container;
         private readonly CloudBlobContainer _blobContainer;
@@ -108,7 +109,7 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
                     buffer,
                     filledCount,
                     isBlobCompressed,
-                    blobPosition + readCount >= blobSize);
+                    blob);
 
                 if (lastReadIndex == -1)
                 {
@@ -132,17 +133,16 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
             byte[] buffer,
             int filledCount,
             bool isBlobCompressed,
-            bool isFullyRead)
+            CloudAppendBlob blob)
         {
             var delimiterEndIndexes = new List<int> {-1};
-            int currentIndex = 0;
             while(true)
             {
-                int newDelimiterEndIndex = GetNextDelimiterEndIndex(
+                int newDelimiterEndIndex = await GetNextDelimiterEndIndexAsync(
                     buffer,
                     filledCount,
-                    currentIndex,
-                    isFullyRead);
+                    delimiterEndIndexes.Last(),
+                    blob);
                 if (newDelimiterEndIndex == -1)
                     break;
 
@@ -186,110 +186,54 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
                 delimiterEndIndexes.Add(newDelimiterEndIndex);
                 if (delimiterEndIndexes.Count >= _maxUnprocessedPatternsCount)
                     throw new InvalidOperationException($"Couldn't properly process blob - {delimiterEndIndexes.Count} unprocessed patterns.");
-                currentIndex = newDelimiterEndIndex + 1;
             }
 
             return delimiterEndIndexes[0];
         }
 
-        private int GetNextDelimiterEndIndex(
+        private async Task<int> GetNextDelimiterEndIndexAsync(
             byte[] buffer,
             int filledCount,
-            int startIndex,
-            bool isFullyRead)
+            int prevDelimiterIndex,
+            CloudAppendBlob blob)
         {
             if (!_isNewFormat.HasValue)
-            {
-                _isNewFormat = DetectNewFormat(
+                _isNewFormat = await DetectNewFormatAsync(
                     buffer,
                     filledCount,
-                    startIndex,
-                    isFullyRead);
-                if (!_isNewFormat.HasValue)
-                {
-                    if (isFullyRead)
-                        _isNewFormat = false;
-                    else
-                        return -1;
-                }
-            }
+                    prevDelimiterIndex,
+                    blob);
 
             if (_isNewFormat.Value)
-            {
-                var result = GetNextDelimiterEndIndexNew(
+                return GetNextDelimiterEndIndexNew(
                     buffer,
                     filledCount,
-                    startIndex);
-                if (result == -1 && isFullyRead)
-                    return GetNextDelimiterEndIndexOld(
-                        buffer,
-                        filledCount,
-                        startIndex);
-            }
+                    prevDelimiterIndex);
             return GetNextDelimiterEndIndexOld(
                 buffer,
                 filledCount,
-                startIndex);
+                prevDelimiterIndex);
         }
 
-        private bool? DetectNewFormat(
+        private async Task<bool> DetectNewFormatAsync(
             byte[] buffer,
             int filledCount,
-            int startIndex,
-            bool isFullyRead)
+            int prevDelimiterIndex,
+            CloudAppendBlob blob)
         {
-            if (startIndex + 8 >= filledCount)
-                return null;
-
-            int messageLength;
-            try
-            {
-                messageLength = BitConverter.ToInt32(buffer, startIndex);
-            }
-            catch
-            {
-                return false;
-            }
-
-            if (messageLength <= 0 || messageLength >= _maxBlobBlockSize - 8)
-                return false;
-
-            if (startIndex + 8 + messageLength >= filledCount)
-            {
-                if (isFullyRead)
-                    return false;
-                return null;
-            }
-
-            int messageLength2;
-            try
-            {
-                messageLength2 = BitConverter.ToInt32(buffer, startIndex + 4 + messageLength);
-            }
-            catch
-            {
-                return false;
-            }
-
-            if (messageLength != messageLength2)
-                return false;
-
-            if (startIndex + 8 + messageLength + _delimiterBytes.Length >= filledCount)
-            {
-                if (isFullyRead)
-                    return false;
-                return null;
-            }
-
-            var (isDelimiter, _) = IsDelimiterEnd(buffer, startIndex + 8 + messageLength);
-            return isDelimiter;
+            if (blob.Metadata == null)
+                await blob.FetchAttributesAsync();
+            if (blob.Metadata.ContainsKey(_newFormatKey) && bool.TryParse(blob.Metadata[_newFormatKey], out bool isNewFormat))
+                return isNewFormat;
+            return false;
         }
 
         private int GetNextDelimiterEndIndexNew(
             byte[] buffer,
             int filledCount,
-            int startIndex)
+            int prevDelimiterIndex)
         {
+            int startIndex = prevDelimiterIndex + 1;
             try
             {
                 int messageLength = BitConverter.ToInt32(buffer, startIndex);
@@ -300,9 +244,12 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
                     _log.WriteWarning(nameof(GetNextDelimiterEndIndexNew), "NewDeserialization", $"Message length dont' match - startIndex: {startIndex}, messageLength: {messageLength}");
                     return -1;
                 }
-                var (isDelimiter, _) = IsDelimiterEnd(buffer, startIndex + 8 + messageLength);
-                if (isDelimiter)
-                    return startIndex + 8 + messageLength + _delimiterBytes.Length;
+
+                int delimiterEndIndex = prevDelimiterIndex + 8 + messageLength + _delimiterBytes.Length;
+                var (isDelimiterEnd, _) = IsDelimiterEnd(buffer, delimiterEndIndex);
+                if (isDelimiterEnd)
+                    return delimiterEndIndex;
+
                 _isNewFormat = false;
                 _log.WriteWarning(nameof(GetNextDelimiterEndIndexNew), "NewDeserialization", $"Not found end delimiter - startIndex: {startIndex}, messageLength: {messageLength}");
                 return -1;
@@ -318,9 +265,9 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
         private int GetNextDelimiterEndIndexOld(
             byte[] buffer,
             int filledCount,
-            int startIndex)
+            int prevDelimiterIndex)
         {
-            for (int i = startIndex + _delimiterBytes.Length - 1; i < filledCount; ++i)
+            for (int i = prevDelimiterIndex + _delimiterBytes.Length; i < filledCount; ++i)
             {
                 (bool eolFound, int seekStep) = IsDelimiterEnd(buffer, i);
                 if (!eolFound)
