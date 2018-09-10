@@ -32,7 +32,7 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
 
         private readonly IMessageProcessor _messageProcessor;
         private readonly ILog _log;
-        private readonly byte[] _separationPatternBytes = Encoding.UTF8.GetBytes("\r\n\r\n");
+        private readonly byte[] _delimiterBytes = Encoding.UTF8.GetBytes("\r\n\r\n");
 
         public BlobReader(
             string container,
@@ -129,27 +129,27 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
             int filledCount,
             bool isBlobCompressed)
         {
-            var eolIndexes = new List<int> {-1};
-            for (int i = _separationPatternBytes.Length - 1; i < filledCount; ++i)
+            var delimiterEndIndexes = new List<int> {-1};
+            int currentIndex = 0;
+            while(true)
             {
-                (bool eolFound, int seekStep) = FindEolPattern(buffer, i);
-                if (!eolFound)
-                {
-                    if (seekStep > 1)
-                        i += seekStep - 1;
-                    continue;
-                }
+                int newDelimiterEndIndex = GetNextDelimiterEndIndex(
+                    buffer,
+                    filledCount,
+                    currentIndex);
+                if (newDelimiterEndIndex == -1)
+                    break;
 
                 bool foundCorrectChunk = false;
-                for (int j = 0; j < eolIndexes.Count; ++j)
+                for (int j = 0; j < delimiterEndIndexes.Count; ++j)
                 {
-                    int eolIndex = eolIndexes[j];
-                    int chunkSize = i - eolIndex - _separationPatternBytes.Length;
+                    int delimiterEndIndex = delimiterEndIndexes[j];
+                    int chunkSize = newDelimiterEndIndex - delimiterEndIndex - _delimiterBytes.Length;
                     if (chunkSize == 0)
                         continue;
 
                     var chunk = new byte[chunkSize];
-                    Array.Copy(buffer, eolIndex + 1, chunk, 0, chunkSize);
+                    Array.Copy(buffer, delimiterEndIndex + 1, chunk, 0, chunkSize);
                     if (isBlobCompressed)
                     {
                         chunk = UnpackMessage(chunk);
@@ -164,19 +164,62 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
                             _log.WriteWarning(
                                 nameof(ProcessBufferAsync),
                                 null,
-                                $"Couldn't process message(s). Skipped {eolIndex - eolIndexes[0]} bytes with {j} patterns.");
+                                $"Couldn't process message(s). Skipped {delimiterEndIndex - delimiterEndIndexes[0]} bytes with {j} delimiters.");
                         break;
                     }
                 }
 
                 if (foundCorrectChunk)
-                    eolIndexes.Clear();
-                eolIndexes.Add(i);
-                if (eolIndexes.Count >= _maxUnprocessedPatternsCount)
-                    throw new InvalidOperationException($"Couldn't properly process blob - {eolIndexes.Count} unprocessed patterns.");
+                    delimiterEndIndexes.Clear();
+                delimiterEndIndexes.Add(newDelimiterEndIndex);
+                if (delimiterEndIndexes.Count >= _maxUnprocessedPatternsCount)
+                    throw new InvalidOperationException($"Couldn't properly process blob - {delimiterEndIndexes.Count} unprocessed patterns.");
+                currentIndex = newDelimiterEndIndex + 1;
             }
 
-            return eolIndexes[0];
+            return delimiterEndIndexes[0];
+        }
+
+        private int GetNextDelimiterEndIndex(
+            byte[] buffer,
+            int filledCount,
+            int startIndex)
+        {
+            for (int i = startIndex + _delimiterBytes.Length - 1; i < filledCount; ++i)
+            {
+                (bool eolFound, int seekStep) = IsDelimiterEnd(buffer, i);
+                if (!eolFound)
+                {
+                    if (seekStep > 1)
+                        i += seekStep - 1;
+                    continue;
+                }
+
+                return i;
+            }
+
+            return -1;
+        }
+
+        private (bool, int) IsDelimiterEnd(byte[] buffer, int pos)
+        {
+            int startPos = pos - _delimiterBytes.Length + 1;
+            for (int i = _delimiterBytes.Length - 1; i >= 0; --i)
+            {
+                if (buffer[startPos + i] == _delimiterBytes[i])
+                    continue;
+
+                int nextStep = 1;
+                for (int j = 1; j < _delimiterBytes.Length; ++j)
+                {
+                    if (buffer[startPos + j] == _delimiterBytes[0])
+                        return (false, nextStep);
+
+                    ++nextStep;
+                }
+                return (false, nextStep);
+            }
+            return (true, 0);
         }
 
         private byte[] UnpackMessage(byte[] chunk)
@@ -200,27 +243,6 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
                 _log.WriteInfo(nameof(ReadAndProcessBlobAsync), null, ex.Message);
                 return null;
             }
-        }
-
-        private (bool, int) FindEolPattern(byte[] buffer, int pos)
-        {
-            int startPos = pos - _separationPatternBytes.Length + 1;
-            for (int i = _separationPatternBytes.Length - 1; i >= 0; --i)
-            {
-                if (buffer[startPos + i] != _separationPatternBytes[i])
-                {
-                    int nextStep = 1;
-                    for (int j = 1; j < _separationPatternBytes.Length; ++j)
-                    {
-                        if (buffer[startPos + j] != _separationPatternBytes[0])
-                            ++nextStep;
-                        else
-                            return (false, nextStep);
-                    }
-                    return (false, nextStep);
-                }
-            }
-            return (true, 0);
         }
     }
 }
