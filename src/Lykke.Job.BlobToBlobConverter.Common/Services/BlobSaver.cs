@@ -1,16 +1,17 @@
-﻿using Common;
+﻿using System;
+using System.Collections.Generic;
+using System.Collections.Concurrent;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using Common;
 using Common.Log;
 using JetBrains.Annotations;
 using Lykke.Job.BlobToBlobConverter.Common.Abstractions;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Blob;
 using Microsoft.WindowsAzure.Storage.RetryPolicies;
-using System;
-using System.Collections.Generic;
-using System.Collections.Concurrent;
-using System.IO;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Lykke.Job.BlobToBlobConverter.Common.Services
 {
@@ -83,20 +84,24 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
 
         public async Task<bool> CreateOrUpdateTablesStructureAsync(TablesStructure tablesStructure)
         {
-            string newStructure = tablesStructure.ToJson();
+            string newStructureJson = tablesStructure.ToJson();
 
             var blob = _blobContainer.GetBlockBlobReference(_tablesStructureFileName);
             bool exists = await blob.ExistsAsync();
             if (exists)
             {
-                string structure = await blob.DownloadTextAsync(null, _blobRequestOptions, null);
-                if (structure == newStructure)
-                    return false;
+                string structureJson = await blob.DownloadTextAsync(null, _blobRequestOptions, null);
+                if (!string.IsNullOrWhiteSpace(structureJson))
+                {
+                    var structure = structureJson.DeserializeJson<TablesStructure>();
+                    if (CompareStructures(tablesStructure, structure))
+                        return false;
+                }
 
-                _log.WriteWarning(nameof(CreateOrUpdateTablesStructureAsync), "Table structure change", $"Table structure is changed from {structure} to {newStructure}");
-                await blob.DeleteAsync();
+                _log.WriteWarning(nameof(CreateOrUpdateTablesStructureAsync), "Table structure change", $"Table structure is changed from {structureJson} to {newStructureJson}");
+                await blob.DeleteIfExistsAsync();
             }
-            await blob.UploadTextAsync(newStructure, null, _blobRequestOptions, null);
+            await blob.UploadTextAsync(newStructureJson, null, _blobRequestOptions, null);
             await SetContentTypeAsync(blob);
             return true;
         }
@@ -167,6 +172,35 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
             catch (StorageException)
             {
             }
+        }
+
+        private bool CompareStructures(TablesStructure newVersion, TablesStructure oldVersion)
+        {
+            if (oldVersion?.Tables == null)
+                return false;
+
+            if (oldVersion.Tables.Count != newVersion.Tables.Count)
+                return false;
+
+            foreach (var table in newVersion.Tables)
+            {
+                var oldTable = oldVersion.Tables.FirstOrDefault(t =>
+                    t.AzureBlobFolder == table.AzureBlobFolder || t.TableName == table.TableName);
+                if (oldTable == null)
+                    return false;
+
+                if (table.Colums.Count != oldTable.Colums.Count)
+                    return false;
+
+                for (int i = 0; i < table.Colums.Count; ++i)
+                {
+                    if (table.Colums[i].ColumnName != oldTable.Colums[i].ColumnName
+                        || table.Colums[i].ColumnType != oldTable.Colums[i].ColumnType)
+                        return false;
+                }
+            }
+
+            return true;
         }
     }
 }

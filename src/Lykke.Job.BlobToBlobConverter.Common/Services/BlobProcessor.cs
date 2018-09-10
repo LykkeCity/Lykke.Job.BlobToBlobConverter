@@ -1,9 +1,9 @@
-﻿using Common.Log;
-using JetBrains.Annotations;
-using Lykke.Job.BlobToBlobConverter.Common.Abstractions;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Common.Log;
+using JetBrains.Annotations;
+using Lykke.Job.BlobToBlobConverter.Common.Abstractions;
 
 namespace Lykke.Job.BlobToBlobConverter.Common.Services
 {

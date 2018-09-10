@@ -1,16 +1,16 @@
-﻿using Common.Log;
-using JetBrains.Annotations;
-using Lykke.Job.BlobToBlobConverter.Common.Abstractions;
-using Microsoft.WindowsAzure.Storage;
-using Microsoft.WindowsAzure.Storage.Blob;
-using Microsoft.WindowsAzure.Storage.RetryPolicies;
-using System;
+﻿using System;
 using System.Linq;
 using System.Text;
 using System.IO;
 using System.IO.Compression;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Common.Log;
+using JetBrains.Annotations;
+using Lykke.Job.BlobToBlobConverter.Common.Abstractions;
+using Microsoft.WindowsAzure.Storage;
+using Microsoft.WindowsAzure.Storage.Blob;
+using Microsoft.WindowsAzure.Storage.RetryPolicies;
 
 namespace Lykke.Job.BlobToBlobConverter.Common.Services
 {
@@ -19,6 +19,7 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
     {
         private const int _maxUnprocessedPatternsCount = 50;
         private const int _blobBlockSize = 4 * 1024 * 1024; // 4 Mb
+        private const int _maxBlobBlockSize = 100 * 1024 * 1024; // 100 Mb
         private const string _compressedKey = "compressed";
 
         private readonly string _container;
@@ -33,6 +34,8 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
         private readonly IMessageProcessor _messageProcessor;
         private readonly ILog _log;
         private readonly byte[] _delimiterBytes = Encoding.UTF8.GetBytes("\r\n\r\n");
+
+        private bool? _isNewFormat;
 
         public BlobReader(
             string container,
@@ -104,7 +107,8 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
                 int lastReadIndex = await ProcessBufferAsync(
                     buffer,
                     filledCount,
-                    isBlobCompressed);
+                    isBlobCompressed,
+                    blobPosition + readCount >= blobSize);
 
                 if (lastReadIndex == -1)
                 {
@@ -127,7 +131,8 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
         private async Task<int> ProcessBufferAsync(
             byte[] buffer,
             int filledCount,
-            bool isBlobCompressed)
+            bool isBlobCompressed,
+            bool isFullyRead)
         {
             var delimiterEndIndexes = new List<int> {-1};
             int currentIndex = 0;
@@ -136,7 +141,8 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
                 int newDelimiterEndIndex = GetNextDelimiterEndIndex(
                     buffer,
                     filledCount,
-                    currentIndex);
+                    currentIndex,
+                    isFullyRead);
                 if (newDelimiterEndIndex == -1)
                     break;
 
@@ -148,8 +154,14 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
                     if (chunkSize == 0)
                         continue;
 
+                    int chunkStart = delimiterEndIndex + 1;
+                    if (_isNewFormat.HasValue && _isNewFormat.Value)
+                    {
+                        chunkSize -= 8;
+                        chunkStart += 4;
+                    }
                     var chunk = new byte[chunkSize];
-                    Array.Copy(buffer, delimiterEndIndex + 1, chunk, 0, chunkSize);
+                    Array.Copy(buffer, chunkStart, chunk, 0, chunkSize);
                     if (isBlobCompressed)
                     {
                         chunk = UnpackMessage(chunk);
@@ -181,6 +193,129 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
         }
 
         private int GetNextDelimiterEndIndex(
+            byte[] buffer,
+            int filledCount,
+            int startIndex,
+            bool isFullyRead)
+        {
+            if (!_isNewFormat.HasValue)
+            {
+                _isNewFormat = DetectNewFormat(
+                    buffer,
+                    filledCount,
+                    startIndex,
+                    isFullyRead);
+                if (!_isNewFormat.HasValue)
+                {
+                    if (isFullyRead)
+                        _isNewFormat = false;
+                    else
+                        return -1;
+                }
+            }
+
+            if (_isNewFormat.Value)
+            {
+                var result = GetNextDelimiterEndIndexNew(
+                    buffer,
+                    filledCount,
+                    startIndex);
+                if (result == -1 && isFullyRead)
+                    return GetNextDelimiterEndIndexOld(
+                        buffer,
+                        filledCount,
+                        startIndex);
+            }
+            return GetNextDelimiterEndIndexOld(
+                buffer,
+                filledCount,
+                startIndex);
+        }
+
+        private bool? DetectNewFormat(
+            byte[] buffer,
+            int filledCount,
+            int startIndex,
+            bool isFullyRead)
+        {
+            if (startIndex + 8 >= filledCount)
+                return null;
+
+            int messageLength;
+            try
+            {
+                messageLength = BitConverter.ToInt32(buffer, startIndex);
+            }
+            catch
+            {
+                return false;
+            }
+
+            if (messageLength <= 0 || messageLength >= _maxBlobBlockSize - 8)
+                return false;
+
+            if (startIndex + 8 + messageLength >= filledCount)
+            {
+                if (isFullyRead)
+                    return false;
+                return null;
+            }
+
+            int messageLength2;
+            try
+            {
+                messageLength2 = BitConverter.ToInt32(buffer, startIndex + 4 + messageLength);
+            }
+            catch
+            {
+                return false;
+            }
+
+            if (messageLength != messageLength2)
+                return false;
+
+            if (startIndex + 8 + messageLength + _delimiterBytes.Length >= filledCount)
+            {
+                if (isFullyRead)
+                    return false;
+                return null;
+            }
+
+            var (isDelimiter, _) = IsDelimiterEnd(buffer, startIndex + 8 + messageLength);
+            return isDelimiter;
+        }
+
+        private int GetNextDelimiterEndIndexNew(
+            byte[] buffer,
+            int filledCount,
+            int startIndex)
+        {
+            try
+            {
+                int messageLength = BitConverter.ToInt32(buffer, startIndex);
+                int messageLength2 = BitConverter.ToInt32(buffer, startIndex + 4 + messageLength);
+                if (messageLength != messageLength2)
+                {
+                    _isNewFormat = false;
+                    _log.WriteWarning(nameof(GetNextDelimiterEndIndexNew), "NewDeserialization", $"Message length dont' match - startIndex: {startIndex}, messageLength: {messageLength}");
+                    return -1;
+                }
+                var (isDelimiter, _) = IsDelimiterEnd(buffer, startIndex + 8 + messageLength);
+                if (isDelimiter)
+                    return startIndex + 8 + messageLength + _delimiterBytes.Length;
+                _isNewFormat = false;
+                _log.WriteWarning(nameof(GetNextDelimiterEndIndexNew), "NewDeserialization", $"Not found end delimiter - startIndex: {startIndex}, messageLength: {messageLength}");
+                return -1;
+            }
+            catch (Exception e)
+            {
+                _isNewFormat = false;
+                _log.WriteWarning(nameof(GetNextDelimiterEndIndexNew), "NewDeserialization", $"Error from startIndex {startIndex}: {e.Message}");
+                return -1;
+            }
+        }
+
+        private int GetNextDelimiterEndIndexOld(
             byte[] buffer,
             int filledCount,
             int startIndex)
