@@ -1,23 +1,25 @@
-﻿using Common.Log;
-using Lykke.Job.BlobToBlobConverter.Core.Services;
+﻿using System.Collections.Generic;
 using System.Threading.Tasks;
+using Autofac;
+using Lykke.Job.BlobToBlobConverter.Core.Services;
 
 namespace Lykke.Job.BlobToBlobConverter.Services
 {
     public class StartupManager : IStartupManager
     {
-        private readonly ILog _log;
-        private readonly IMainHandler _mainHandler;
+        private readonly List<IStartable> _startables = new List<IStartable>();
 
-        public StartupManager(ILog log, IMainHandler mainHandler)
+        public StartupManager(IEnumerable<IStartStop> startables)
         {
-            _log = log;
-            _mainHandler = mainHandler;
+            _startables.AddRange(startables);
         }
 
         public Task StartAsync()
         {
-            _mainHandler.Start();
+            foreach (var startable in _startables)
+            {
+                startable.Start();
+            }
 
             return Task.CompletedTask;
         }

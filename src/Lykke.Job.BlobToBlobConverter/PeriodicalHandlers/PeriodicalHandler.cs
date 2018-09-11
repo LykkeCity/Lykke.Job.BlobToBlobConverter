@@ -1,15 +1,15 @@
-﻿using Common;
+﻿using System;
+using System.Threading.Tasks;
+using Common;
 using Common.Log;
 using JetBrains.Annotations;
 using Lykke.Job.BlobToBlobConverter.Common.Abstractions;
 using Lykke.Job.BlobToBlobConverter.Core.Services;
-using System;
-using System.Threading.Tasks;
 
 namespace Lykke.Job.BlobToBlobConverter.PeriodicalHandlers
 {
     [UsedImplicitly]
-    public class PeriodicalHandler : TimerPeriod, IMainHandler
+    public class PeriodicalHandler : TimerPeriod, IStartStop
     {
         private readonly IBlobProcessor _blobProcessor;
 

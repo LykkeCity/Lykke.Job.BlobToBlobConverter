@@ -1,8 +1,9 @@
 ﻿using Autofac;
+using Common;
 
 namespace Lykke.Job.BlobToBlobConverter.Core.Services
 {
-    public interface IMainHandler : IStartable
+    public interface IStartStop : IStartable, IStopable
     {
     }
 }
