@@ -234,9 +234,16 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
             int prevDelimiterIndex)
         {
             int startIndex = prevDelimiterIndex + 1;
+            if (startIndex + 4 >= filledCount)
+                return -1;
+
             try
             {
                 int messageLength = BitConverter.ToInt32(buffer, startIndex);
+                int delimiterEndIndex = prevDelimiterIndex + 8 + messageLength + _delimiterBytes.Length;
+                if (delimiterEndIndex >= filledCount)
+                    return -1;
+
                 int messageLength2 = BitConverter.ToInt32(buffer, startIndex + 4 + messageLength);
                 if (messageLength != messageLength2)
                 {
@@ -245,7 +252,6 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
                     return -1;
                 }
 
-                int delimiterEndIndex = prevDelimiterIndex + 8 + messageLength + _delimiterBytes.Length;
                 var (isDelimiterEnd, _) = IsDelimiterEnd(buffer, delimiterEndIndex);
                 if (isDelimiterEnd)
                     return delimiterEndIndex;
