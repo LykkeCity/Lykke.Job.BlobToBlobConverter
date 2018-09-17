@@ -57,6 +57,9 @@ namespace Lykke.Job.BlobToBlobConverter.Settings
         public bool? SkipCorrupted { get; set; }
 
         [Optional]
+        public string LastBlob { get; set; }
+
+        [Optional]
         public Dictionary<string, List<string>> ExcludedPropertiesMap { get; set; }
 
         [Optional]

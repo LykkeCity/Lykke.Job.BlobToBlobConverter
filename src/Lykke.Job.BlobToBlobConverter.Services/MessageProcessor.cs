@@ -146,7 +146,11 @@ namespace Lykke.Job.BlobToBlobConverter.Services
                 switch (_deserializeFormat.Value)
                 {
                     case SerializationFormat.Json:
-                        return JsonDeserializer.TryDeserialize(data, _messageType, out result);
+                        return JsonDeserializer.TryDeserialize(
+                            data,
+                            _messageType,
+                            _log,
+                            out result);
                     case SerializationFormat.MessagePack:
                         return MessagePackDeserializer.TryDeserialize(data, _messageType, out result);
                     case SerializationFormat.Protobuf:
@@ -155,7 +159,11 @@ namespace Lykke.Job.BlobToBlobConverter.Services
                         throw new NotSupportedException($"Serialization format {_deserializeFormat.Value} is not supported");
                 }
             }
-            bool success = JsonDeserializer.TryDeserialize(data, _messageType, out result);
+            bool success = JsonDeserializer.TryDeserialize(
+                data,
+                _messageType,
+                _log,
+                out result);
             if (success)
             {
                 _deserializeFormat = SerializationFormat.Json;

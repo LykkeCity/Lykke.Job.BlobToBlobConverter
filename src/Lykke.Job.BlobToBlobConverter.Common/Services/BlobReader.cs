@@ -173,9 +173,7 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
                     if (foundCorrectChunk)
                     {
                         if (j > 0)
-                            _log.WriteWarning(
-                                nameof(ProcessBufferAsync),
-                                null,
+                            throw new InvalidOperationException(
                                 $"Couldn't process message(s). Skipped {delimiterEndIndex - delimiterEndIndexes[0]} bytes with {j} delimiters.");
                         break;
                     }
@@ -248,7 +246,7 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
                 if (messageLength != messageLength2)
                 {
                     _isNewFormat = false;
-                    _log.WriteWarning(nameof(GetNextDelimiterEndIndexNew), "NewDeserialization", $"Message length dont' match - startIndex: {startIndex}, messageLength: {messageLength}");
+                    _log.WriteWarning(nameof(GetNextDelimiterEndIndexNew), "NewDeserialization", $"Message length don't match - startIndex: {startIndex}, messageLength: {messageLength}");
                     return -1;
                 }
 

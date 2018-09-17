@@ -14,41 +14,28 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
         private readonly IBlobSaver _blobSaver;
         private readonly IStructureBuilder _structureBuilder;
         private readonly IMessageProcessor _messageConverter;
-        private readonly string _instanceTag;
         private readonly ILog _log;
+        private readonly string _instanceTag;
 
         private bool _allBlobsReprocessingRequired;
+        private string _lastBlob;
 
         public BlobProcessor(
             IBlobReader blobReader,
             IBlobSaver blobSaver,
             IMessageProcessor messageConverter,
             IStructureBuilder structureBuilder,
-            ILog log)
-            : this(
-                blobReader,
-                blobSaver,
-                messageConverter,
-                structureBuilder,
-                null,
-                log)
-        {
-        }
-
-        public BlobProcessor(
-            IBlobReader blobReader,
-            IBlobSaver blobSaver,
-            IMessageProcessor messageConverter,
-            IStructureBuilder structureBuilder,
-            string instanceTag,
-            ILog log)
+            ILog log,
+            string instanceTag = null,
+            string lastBlob = null)
         {
             _blobReader = blobReader;
             _blobSaver = blobSaver;
             _structureBuilder = structureBuilder;
             _messageConverter = messageConverter;
-            _instanceTag = instanceTag;
             _log = log;
+            _instanceTag = instanceTag;
+            _lastBlob = lastBlob;
 
             if (_structureBuilder.IsDynamicStructure)
             {
@@ -73,7 +60,16 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
             }
             else
             {
-                var lastBlob = await _blobSaver.GetLastSavedBlobAsync();
+                string lastBlob;
+                if (!string.IsNullOrWhiteSpace(_lastBlob))
+                {
+                    lastBlob = _lastBlob;
+                    _lastBlob = null;
+                }
+                else
+                {
+                    lastBlob = await _blobSaver.GetLastSavedBlobAsync();
+                }
                 blobs = await _blobReader.GetBlobsForConversionAsync(lastBlob);
             }
 

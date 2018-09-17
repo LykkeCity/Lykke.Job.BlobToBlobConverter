@@ -86,7 +86,8 @@ namespace Lykke.Job.BlobToBlobConverter.Modules
             builder.RegisterType<BlobProcessor>()
                 .As<IBlobProcessor>()
                 .SingleInstance()
-                .WithParameter("instanceTag", _instanceTag);
+                .WithParameter("instanceTag", _instanceTag)
+                .WithParameter("lastBlob", _settings.LastBlob);
 
             builder.RegisterType<PeriodicalHandler>()
                 .As<IStartStop>()
