@@ -1,16 +1,16 @@
-﻿using Common;
-using Common.Log;
-using Lykke.Job.BlobToBlobConverter.Core;
-using Lykke.Job.BlobToBlobConverter.Core.Services;
-using Lykke.Job.BlobToBlobConverter.Common.Helpers;
-using Lykke.Job.BlobToBlobConverter.Common.Abstractions;
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
+using Common;
+using Common.Log;
+using Lykke.Job.BlobToBlobConverter.Common.Helpers;
+using Lykke.Job.BlobToBlobConverter.Common.Abstractions;
+using Lykke.Job.BlobToBlobConverter.Core;
+using Lykke.Job.BlobToBlobConverter.Core.Services;
 
 namespace Lykke.Job.BlobToBlobConverter.Services
 {
@@ -152,9 +152,17 @@ namespace Lykke.Job.BlobToBlobConverter.Services
                             _log,
                             out result);
                     case SerializationFormat.MessagePack:
-                        return MessagePackDeserializer.TryDeserialize(data, _messageType, out result);
+                        return MessagePackDeserializer.TryDeserialize(
+                            data,
+                            _messageType,
+                            _log,
+                            out result);
                     case SerializationFormat.Protobuf:
-                        return ProtobufDeserializer.TryDeserialize(data, _messageType, out result);
+                        return ProtobufDeserializer.TryDeserialize(
+                            data,
+                            _messageType,
+                            _log,
+                            out result);
                     default:
                         throw new NotSupportedException($"Serialization format {_deserializeFormat.Value} is not supported");
                 }
@@ -169,13 +177,21 @@ namespace Lykke.Job.BlobToBlobConverter.Services
                 _deserializeFormat = SerializationFormat.Json;
                 return true;
             }
-            success = MessagePackDeserializer.TryDeserialize(data, _messageType, out result);
+            success = MessagePackDeserializer.TryDeserialize(
+                data,
+                _messageType,
+                _log,
+                out result);
             if (success)
             {
                 _deserializeFormat = SerializationFormat.MessagePack;
                 return true;
             }
-            success = ProtobufDeserializer.TryDeserialize(data, _messageType, out result);
+            success = ProtobufDeserializer.TryDeserialize(
+                data,
+                _messageType,
+                _log,
+                out result);
             if (!success)
                 _log.WriteWarning(nameof(TryDeserialize), null, $"Couldn't deserialize message with length {data.Length}");
             return success;
