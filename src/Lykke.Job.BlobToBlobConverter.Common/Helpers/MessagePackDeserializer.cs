@@ -20,7 +20,7 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Helpers
             }
             catch (Exception e)
             {
-                log.WriteWarning(nameof(MessagePackDeserializer), nameof(TryDeserialize), e.Message);
+                log?.WriteWarning(nameof(MessagePackDeserializer), nameof(TryDeserialize), e.Message);
                 result = default(T);
                 return false;
             }
@@ -39,7 +39,7 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Helpers
             }
             catch (Exception e)
             {
-                log.WriteWarning(nameof(MessagePackDeserializer), nameof(TryDeserialize), e.Message);
+                log?.WriteWarning(nameof(MessagePackDeserializer), nameof(TryDeserialize), e.Message);
                 result = null;
                 return false;
             }

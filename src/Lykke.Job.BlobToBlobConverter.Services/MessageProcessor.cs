@@ -170,7 +170,7 @@ namespace Lykke.Job.BlobToBlobConverter.Services
             bool success = JsonDeserializer.TryDeserialize(
                 data,
                 _messageType,
-                _log,
+                null,
                 out result);
             if (success)
             {
@@ -180,7 +180,7 @@ namespace Lykke.Job.BlobToBlobConverter.Services
             success = MessagePackDeserializer.TryDeserialize(
                 data,
                 _messageType,
-                _log,
+                null,
                 out result);
             if (success)
             {
@@ -190,7 +190,7 @@ namespace Lykke.Job.BlobToBlobConverter.Services
             success = ProtobufDeserializer.TryDeserialize(
                 data,
                 _messageType,
-                _log,
+                null,
                 out result);
             if (!success)
                 _log.WriteWarning(nameof(TryDeserialize), null, $"Couldn't deserialize message with length {data.Length}");
