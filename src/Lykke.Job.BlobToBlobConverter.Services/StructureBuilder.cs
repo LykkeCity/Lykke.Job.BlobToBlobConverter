@@ -1,11 +1,11 @@
-﻿using Lykke.Job.BlobToBlobConverter.Common;
-using Lykke.Job.BlobToBlobConverter.Common.Abstractions;
-using Lykke.Job.BlobToBlobConverter.Core;
-using Lykke.Job.BlobToBlobConverter.Core.Services;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using Lykke.Job.BlobToBlobConverter.Common;
+using Lykke.Job.BlobToBlobConverter.Common.Abstractions;
+using Lykke.Job.BlobToBlobConverter.Core;
+using Lykke.Job.BlobToBlobConverter.Core.Services;
 
 namespace Lykke.Job.BlobToBlobConverter.Services
 {
@@ -275,22 +275,26 @@ namespace Lykke.Job.BlobToBlobConverter.Services
 
             if (collector.Colums.Count > 0)
             {
-                if (parentIdPropertyName != null && parentType != type)
+                if (parentType != type)
                 {
-                    var parentIdPropertyInChild = type.GetProperty(parentIdPropertyName);
-                    if (parentIdPropertyInChild == null)
-                        collector.Colums.Insert(
-                            0,
-                            new ColumnInfo
-                            {
-                                ColumnName = parentIdPropertyName,
-                                ColumnType = parentIdPropertyTypeName,
-                            });
+                    if (parentIdPropertyName != null)
+                    {
+                        var parentIdPropertyInChild = type.GetProperty(parentIdPropertyName);
+                        if (parentIdPropertyInChild == null)
+                            collector.Colums.Insert(
+                                0,
+                                new ColumnInfo
+                                {
+                                    ColumnName = parentIdPropertyName,
+                                    ColumnType = parentIdPropertyTypeName,
+                                });
+                    }
+                    else if (valueProperties.Count > 0 && parentType != null && PropertiesMap[parentType].ValueProperties.Count > 0)
+                    {
+                        throw new InvalidOperationException(
+                            $"Type {typeName} must have any identificators that can be used to make relations to its parent type {parentType.Name}");
+                    }
                 }
-                else if (valueProperties.Count > 0 && parentType != null && parentType != type
-                    && PropertiesMap[parentType].ValueProperties.Count > 0)
-                    throw new InvalidOperationException(
-                        $"Type {typeName} must have any identificators that can be used to make relations to its parent");
 
                 if (idProperty != null)
                 {
