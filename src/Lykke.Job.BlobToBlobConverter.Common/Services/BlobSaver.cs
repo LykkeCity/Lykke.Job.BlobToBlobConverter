@@ -77,7 +77,7 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
             }
 
             var lastBlob = _blobContainer.GetBlockBlobReference(_lastBlobFile);
-            await lastBlob.DeleteIfExistsAsync();
+            await lastBlob.DeleteIfExistsAsync(DeleteSnapshotsOption.IncludeSnapshots, null, _blobRequestOptions, null);
             await lastBlob.UploadTextAsync(blobName, null, _blobRequestOptions, null);
             await SetContentTypeAsync(lastBlob);
         }
