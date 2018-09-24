@@ -61,11 +61,11 @@ namespace Lykke.Job.BlobToBlobConverter.Services
                 true);
             _nugetLogger = new NugetLogger(log);
 
+            _nugetPackageName = nugetPackageName;
             _processingTypeName = processingTypeName;
             int dotIndex = _processingTypeName.IndexOf('.');
             if (dotIndex == -1)
                 _processingTypeName = $"{_nugetPackageName}.{_processingTypeName}";
-            _nugetPackageName = nugetPackageName;
             _messageMode = messageMode;
         }
 
@@ -156,8 +156,9 @@ namespace Lykke.Job.BlobToBlobConverter.Services
                 throw new InvalidOperationException($"Dll files not found in {_packageDownloadContext.DirectDownloadDirectory}");
 
             var assembly = Assembly.LoadFile(dllFiles.First());
-            var type = assembly.GetType(_processingTypeName)
-                ?? throw new InvalidOperationException($"Type {_processingTypeName} not found among {assembly.ExportedTypes.Select(t => t.FullName).ToList().ToJson()}");
+            var type = assembly.GetType(_processingTypeName);
+            if (type == null)
+                throw new InvalidOperationException($"Type {_processingTypeName} not found among {assembly.ExportedTypes.Select(t => t.FullName).ToList().ToJson()}");
 
             return type;
         }
