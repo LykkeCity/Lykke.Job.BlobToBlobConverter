@@ -11,11 +11,13 @@ namespace Lykke.Job.BlobToBlobConverter.Services
 {
     public class StructureBuilder : IStructureBuilder, ITypeInfo
     {
-        private readonly Type _type;
         private readonly Dictionary<string, List<string>> _excludedPropertiesMap;
         private readonly Dictionary<string, string> _idPropertiesMap;
         private readonly Dictionary<string, string> _relationPropertiesMap;
         private readonly string _instanceTag;
+        private readonly IProcessingTypeResolver _processingTypeResolver;
+
+        private Type _type;
 
         internal static Type[] GenericCollectionTypes { get; } = {
             typeof(List<>), typeof(IList<>), typeof(IReadOnlyList<>),
@@ -29,19 +31,18 @@ namespace Lykke.Job.BlobToBlobConverter.Services
         public bool IsDynamicStructure => false;
 
         public StructureBuilder(
-            ITypeRetriever typeRetriever,
-            string processingType,
-            string nugetPackageName,
+            IProcessingTypeResolver processingTypeResolver,
             string instanceTag,
             Dictionary<string, List<string>> excludedPropertiesMap,
             Dictionary<string, string> idPropertiesMap,
             Dictionary<string, string> relationPropertiesMap)
         {
-            _type = typeRetriever.RetrieveTypeAsync(processingType, nugetPackageName).GetAwaiter().GetResult();
+            _processingTypeResolver = processingTypeResolver;
             _excludedPropertiesMap = excludedPropertiesMap ?? new Dictionary<string, List<string>>(0);
             _idPropertiesMap = idPropertiesMap ?? new Dictionary<string, string>(0);
             _relationPropertiesMap = relationPropertiesMap ?? new Dictionary<string, string>();
             _instanceTag = instanceTag;
+
             PropertiesMap = new Dictionary<Type, TypeData>();
         }
 
@@ -57,6 +58,9 @@ namespace Lykke.Job.BlobToBlobConverter.Services
 
         public TablesStructure GetTablesStructure()
         {
+            if (_type == null)
+                _type = _processingTypeResolver.ResolveProcessingTypeAsync().GetAwaiter().GetResult();
+
             var result = new TablesStructure { Tables = new List<TableStructure>() };
 
             AddStructureLevel(

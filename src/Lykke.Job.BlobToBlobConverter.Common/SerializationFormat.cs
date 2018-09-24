@@ -1,4 +1,4 @@
-﻿namespace Lykke.Job.BlobToBlobConverter.Services
+﻿namespace Lykke.Job.BlobToBlobConverter.Common
 {
     internal enum SerializationFormat
     {

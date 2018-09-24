@@ -7,8 +7,8 @@ using System.Text;
 using System.Threading.Tasks;
 using Common;
 using Common.Log;
-using Lykke.Job.BlobToBlobConverter.Common.Helpers;
 using Lykke.Job.BlobToBlobConverter.Common.Abstractions;
+using Lykke.Job.BlobToBlobConverter.Common.Helpers;
 using Lykke.Job.BlobToBlobConverter.Core;
 using Lykke.Job.BlobToBlobConverter.Core.Services;
 
@@ -18,49 +18,38 @@ namespace Lykke.Job.BlobToBlobConverter.Services
     {
         private const int _maxBatchCount = 1000000;
 
-        private readonly Type _type;
-        private readonly Type _messageType;
         private readonly bool _skipCorrupted;
         private readonly ILog _log;
         private readonly ITypeInfo _typeInfo;
-        private readonly MethodInfo _isValidMethod;
+        private readonly IProcessingTypeResolver _processingTypeResolver;
 
-        private SerializationFormat? _deserializeFormat;
+        private Type _type;
+        private MethodInfo _isValidMethod;
         private Dictionary<string, List<string>> _objectsData;
         private Func<string, List<string>, Task> _messagesHandler;
 
         public MessageProcessor(
-            string processingType,
-            string nugetPackageName,
-            MessageMode messageMode,
             bool skipCorrupted,
-            ITypeRetriever typeRetriever,
+            IProcessingTypeResolver processingTypeResolver,
             ITypeInfo typeInfo,
             ILog log)
         {
-            _type = typeRetriever.RetrieveTypeAsync(processingType, nugetPackageName).GetAwaiter().GetResult();
-            _log = log;
-            _typeInfo = typeInfo;
             _skipCorrupted = skipCorrupted;
-            _isValidMethod = _type.GetMethod("IsValid", new Type[0]);
-            switch(messageMode)
-            {
-                case MessageMode.Single:
-                    _messageType = _type;
-                    break;
-                case MessageMode.List:
-                    _messageType = typeof(List<>).MakeGenericType(_type);
-                    break;
-                case MessageMode.Array:
-                    _messageType = _type.MakeArrayType();
-                    break;
-            }
+            _processingTypeResolver = processingTypeResolver;
+            _typeInfo = typeInfo;
+            _log = log;
         }
 
         public void StartBlobProcessing(Func<string, List<string>, Task> messagesHandler)
         {
             _messagesHandler = messagesHandler;
             _objectsData = new Dictionary<string, List<string>>();
+
+            if (_type == null)
+            {
+                _type = _processingTypeResolver.ResolveProcessingTypeAsync().GetAwaiter().GetResult();
+                _isValidMethod = _type.GetMethod("IsValid", new Type[0]);
+            }
         }
 
         public async Task FinishBlobProcessingAsync()
@@ -68,19 +57,15 @@ namespace Lykke.Job.BlobToBlobConverter.Services
             await SaveObjectsDataAsync();
         }
 
-        public async Task<bool> TryProcessMessageAsync(byte[] data)
+        public async Task ProcessMessageAsync(object obj)
         {
-            var result = TryDeserialize(data, out var obj);
-            if (!result)
-                return false;
-
             try
             {
                 if (_isValidMethod != null)
                 {
                     bool isValid = (bool)_isValidMethod.Invoke(obj, null);
                     if (!isValid)
-                        _log.WriteWarning(nameof(MessageProcessor), nameof(TryProcessMessageAsync), $"{_type.FullName} {obj.ToJson()} is invalid!");
+                        _log.WriteWarning(nameof(MessageProcessor), nameof(ProcessMessageAsync), $"{_type.FullName} {obj.ToJson()} is invalid!");
                 }
 
                 ProcessTypeItem(
@@ -96,14 +81,12 @@ namespace Lykke.Job.BlobToBlobConverter.Services
             }
             catch (Exception ex)
             {
-                _log.WriteError(nameof(TryProcessMessageAsync), obj, ex);
+                _log.WriteError(nameof(ProcessMessageAsync), obj, ex);
                 if (_skipCorrupted)
-                    _log.WriteWarning(nameof(TryProcessMessageAsync), obj, "Skipped corrupted message");
+                    _log.WriteWarning(nameof(ProcessMessageAsync), obj, "Skipped corrupted message");
                 else
                     throw;
             }
-
-            return true;
         }
 
         private async Task SaveObjectsDataAsync()
@@ -137,64 +120,6 @@ namespace Lykke.Job.BlobToBlobConverter.Services
                     parentType,
                     parentId);
             }
-        }
-
-        private bool TryDeserialize(byte[] data, out object result)
-        {
-            if (_deserializeFormat.HasValue)
-            {
-                switch (_deserializeFormat.Value)
-                {
-                    case SerializationFormat.Json:
-                        return JsonDeserializer.TryDeserialize(
-                            data,
-                            _messageType,
-                            _log,
-                            out result);
-                    case SerializationFormat.MessagePack:
-                        return MessagePackDeserializer.TryDeserialize(
-                            data,
-                            _messageType,
-                            _log,
-                            out result);
-                    case SerializationFormat.Protobuf:
-                        return ProtobufDeserializer.TryDeserialize(
-                            data,
-                            _messageType,
-                            _log,
-                            out result);
-                    default:
-                        throw new NotSupportedException($"Serialization format {_deserializeFormat.Value} is not supported");
-                }
-            }
-            bool success = JsonDeserializer.TryDeserialize(
-                data,
-                _messageType,
-                null,
-                out result);
-            if (success)
-            {
-                _deserializeFormat = SerializationFormat.Json;
-                return true;
-            }
-            success = MessagePackDeserializer.TryDeserialize(
-                data,
-                _messageType,
-                null,
-                out result);
-            if (success)
-            {
-                _deserializeFormat = SerializationFormat.MessagePack;
-                return true;
-            }
-            success = ProtobufDeserializer.TryDeserialize(
-                data,
-                _messageType,
-                null,
-                out result);
-            if (!success)
-                _log.WriteWarning(nameof(TryDeserialize), null, $"Couldn't deserialize message with length {data.Length}");
-            return success;
         }
 
         private void AddValueLevel(

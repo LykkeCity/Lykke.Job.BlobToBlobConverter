@@ -3,8 +3,8 @@ using System.Threading.Tasks;
 
 namespace Lykke.Job.BlobToBlobConverter.Core.Services
 {
-    public interface ITypeRetriever
+    public interface IProcessingTypeResolver
     {
-        Task<Type> RetrieveTypeAsync(string typeName, string nugetPackageName);
+        Task<Type> ResolveProcessingTypeAsync();
     }
 }

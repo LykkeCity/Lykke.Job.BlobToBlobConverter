@@ -1,21 +1,22 @@
-﻿using Common.Log;
-using Lykke.Job.BlobToBlobConverter.Core.Services;
-using NuGet.Configuration;
-using NuGet.Packaging;
-using NuGet.Protocol;
-using NuGet.Protocol.Core.Types;
-using System;
+﻿using System;
 using System.Collections.Generic;
-using System.Collections.Concurrent;
 using System.Linq;
 using System.IO;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
+using Common.Log;
+using Lykke.Job.BlobToBlobConverter.Common.Abstractions;
+using Lykke.Job.BlobToBlobConverter.Core;
+using Lykke.Job.BlobToBlobConverter.Core.Services;
+using NuGet.Configuration;
+using NuGet.Packaging;
+using NuGet.Protocol;
+using NuGet.Protocol.Core.Types;
 
 namespace Lykke.Job.BlobToBlobConverter.Services
 {
-    public class TypeRetriever : ITypeRetriever
+    public class TypeRetriever : IMessageTypeResolver, IProcessingTypeResolver
     {
         private const string _libsDir = "libs";
         private const string _dllExtension = ".dll";
@@ -27,9 +28,19 @@ namespace Lykke.Job.BlobToBlobConverter.Services
         private readonly PackageDownloadContext _packageDownloadContext;
         private readonly NugetLogger _nugetLogger;
         private readonly string _downloadDirectory;
-        private readonly ConcurrentDictionary<string, Type> _resolvedTypes = new ConcurrentDictionary<string, Type>();
+        private readonly string _processingTypeName;
+        private readonly string _nugetPackageName;
+        private readonly MessageMode _messageMode;
+        private readonly SemaphoreSlim _lock = new SemaphoreSlim(1, 1);
 
-        public TypeRetriever(ILog log)
+        private Type _messageType;
+        private Type _processingType;
+
+        public TypeRetriever(
+            string processingTypeName,
+            string nugetPackageName,
+            MessageMode messageMode,
+            ILog log)
         {
             List<Lazy<INuGetResourceProvider>> providers = new List<Lazy<INuGetResourceProvider>>();
             providers.AddRange(Repository.Provider.GetCoreV3());  // Add v3 API support
@@ -49,20 +60,69 @@ namespace Lykke.Job.BlobToBlobConverter.Services
                 _downloadDirectory,
                 true);
             _nugetLogger = new NugetLogger(log);
+
+            _processingTypeName = processingTypeName;
+            int dotIndex = _processingTypeName.IndexOf('.');
+            if (dotIndex == -1)
+                _processingTypeName = $"{_nugetPackageName}.{_processingTypeName}";
+            _nugetPackageName = nugetPackageName;
+            _messageMode = messageMode;
         }
 
-        public async Task<Type> RetrieveTypeAsync(string typeName, string nugetPackageName)
+        public async Task<Type> ResolveProcessingTypeAsync()
         {
-            int dotIndex = typeName.IndexOf('.');
-            if (dotIndex == -1)
-                typeName = $"{nugetPackageName}.{typeName}";
+            if (_messageType != null)
+                return _processingType;
 
-            string typeKey = $"{typeName}_{nugetPackageName}";
-            if (_resolvedTypes.TryGetValue(typeKey, out var result))
-                return result;
+            await InitTypes();
 
-            bool isBetaPackage = nugetPackageName.EndsWith(_betaSuffix);
-            (string searchName, bool isSpecificVersion) = GetSearchablePackageName(nugetPackageName, isBetaPackage);
+            return _processingType;
+        }
+
+        public async Task<Type> ResolveMessageTypeAsync()
+        {
+            if (_messageType != null)
+                return _messageType;
+
+            await InitTypes();
+
+            return _messageType;
+        }
+
+        private async Task InitTypes()
+        {
+            await _lock.WaitAsync();
+
+            try
+            {
+                if (_processingType != null)
+                    return;
+
+                _processingType = await RetrieveTypeAsync();
+
+                switch (_messageMode)
+                {
+                    case MessageMode.Single:
+                        _messageType = _processingType;
+                        break;
+                    case MessageMode.List:
+                        _messageType = typeof(List<>).MakeGenericType(_processingType);
+                        break;
+                    case MessageMode.Array:
+                        _messageType = _processingType.MakeArrayType();
+                        break;
+                }
+            }
+            finally
+            {
+                _lock.Release();
+            }
+        }
+
+        private async Task<Type> RetrieveTypeAsync()
+        {
+            bool isBetaPackage = _nugetPackageName.EndsWith(_betaSuffix);
+            (string searchName, bool isSpecificVersion) = GetSearchablePackageName(_nugetPackageName, isBetaPackage);
 
             IEnumerable<IPackageSearchMetadata> searchMetadata = await _packageMetadataResource.GetMetadataAsync(
                 searchName,
@@ -71,12 +131,12 @@ namespace Lykke.Job.BlobToBlobConverter.Services
                 _nugetLogger,
                 CancellationToken.None);
             if (!searchMetadata.Any())
-                throw new InvalidOperationException($"Package {nugetPackageName} not found");
+                throw new InvalidOperationException($"Package {_nugetPackageName} not found");
 
             var packageInfo = searchMetadata
                 .Cast<PackageSearchMetadata>()
                 .OrderByDescending(p => p.Version)
-                .First(i => !isSpecificVersion || i.Identity.ToString() == nugetPackageName);
+                .First(i => !isSpecificVersion || i.Identity.ToString() == _nugetPackageName);
 
             var downloadResult = await _downloadResource.GetDownloadResourceResultAsync(
                 packageInfo.Identity,
@@ -85,7 +145,7 @@ namespace Lykke.Job.BlobToBlobConverter.Services
                 _nugetLogger,
                 CancellationToken.None);
             if (downloadResult.Status != DownloadResourceResultStatus.Available)
-                throw new InvalidOperationException($"Nuget package {nugetPackageName} of version {packageInfo.Version} is not available for download");
+                throw new InvalidOperationException($"Nuget package {_nugetPackageName} of version {packageInfo.Version} is not available for download");
 
             var pathResolver = new PackagePathResolver(_downloadDirectory);
             var extractContext = new PackageExtractionContext(_nugetLogger);
@@ -96,11 +156,8 @@ namespace Lykke.Job.BlobToBlobConverter.Services
                 throw new InvalidOperationException($"Dll files not found in {_packageDownloadContext.DirectDownloadDirectory}");
 
             var assembly = Assembly.LoadFile(dllFiles.First());
-            var type = assembly.GetType(typeName);
-            if (type == null)
-                throw new InvalidOperationException($"Type {typeName} not found among {assembly.ExportedTypes.Select(t => t.FullName).ToList().ToJson()}");
-
-            _resolvedTypes.TryAdd(typeKey, type);
+            var type = assembly.GetType(_processingTypeName)
+                ?? throw new InvalidOperationException($"Type {_processingTypeName} not found among {assembly.ExportedTypes.Select(t => t.FullName).ToList().ToJson()}");
 
             return type;
         }

@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Common.Log;
 using JetBrains.Annotations;
 using Lykke.Job.BlobToBlobConverter.Common.Abstractions;
+using Lykke.Job.BlobToBlobConverter.Common.Helpers;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Blob;
 using Microsoft.WindowsAzure.Storage.RetryPolicies;
@@ -35,12 +36,16 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
         private readonly IMessageProcessor _messageProcessor;
         private readonly ILog _log;
         private readonly byte[] _delimiterBytes = Encoding.UTF8.GetBytes("\r\n\r\n");
+        private readonly IMessageTypeResolver _messageTypeResolver;
 
+        private Type _messageType;
+        private SerializationFormat? _deserializeFormat;
         private bool? _isNewFormat;
 
         public BlobReader(
             string container,
             string blobConnectionString,
+            IMessageTypeResolver messageTypeResolver,
             IMessageProcessor messageProcessor,
             ILog log)
         {
@@ -50,6 +55,7 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
             bool containerExists = _blobContainer.ExistsAsync().GetAwaiter().GetResult();
             if (!containerExists)
                 throw new InvalidOperationException($"Container {_container} doesn't exist!");
+            _messageTypeResolver = messageTypeResolver;
             _messageProcessor = messageProcessor;
             _log = log;
         }
@@ -76,6 +82,9 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
 
         public async Task ReadAndProcessBlobAsync(string blobName)
         {
+            if (_messageType == null)
+                _messageType = await _messageTypeResolver.ResolveMessageTypeAsync();
+
             var blob = _blobContainer.GetAppendBlobReference(blobName);
             await blob.FetchAttributesAsync();
             bool isBlobCompressed = false;
@@ -169,12 +178,13 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
                             continue;
                     }
 
-                    foundCorrectChunk = await _messageProcessor.TryProcessMessageAsync(chunk);
+                    foundCorrectChunk = TryDeserialize(chunk, out var obj);
                     if (foundCorrectChunk)
                     {
                         if (j > 0)
                             throw new InvalidOperationException(
                                 $"Couldn't process message(s). Skipped {delimiterEndIndex - delimiterEndIndexes[0]} bytes with {j} delimiters.");
+                        await _messageProcessor.ProcessMessageAsync(obj);
                         break;
                     }
                 }
@@ -329,6 +339,65 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
                 _log.WriteInfo(nameof(ReadAndProcessBlobAsync), null, ex.Message);
                 return null;
             }
+        }
+
+        private bool TryDeserialize(byte[] data, out object result)
+        {
+            if (_deserializeFormat.HasValue)
+            {
+                bool shouldLogError = _isNewFormat ?? false;
+                switch (_deserializeFormat.Value)
+                {
+                    case SerializationFormat.Json:
+                        return JsonDeserializer.TryDeserialize(
+                            data,
+                            _messageType,
+                            shouldLogError ? _log : null,
+                            out result);
+                    case SerializationFormat.MessagePack:
+                        return MessagePackDeserializer.TryDeserialize(
+                            data,
+                            _messageType,
+                            shouldLogError ? _log : null,
+                            out result);
+                    case SerializationFormat.Protobuf:
+                        return ProtobufDeserializer.TryDeserialize(
+                            data,
+                            _messageType,
+                            shouldLogError ? _log : null,
+                            out result);
+                    default:
+                        throw new NotSupportedException($"Serialization format {_deserializeFormat.Value} is not supported");
+                }
+            }
+            bool success = JsonDeserializer.TryDeserialize(
+                data,
+                _messageType,
+                null,
+                out result);
+            if (success)
+            {
+                _deserializeFormat = SerializationFormat.Json;
+                return true;
+            }
+            success = MessagePackDeserializer.TryDeserialize(
+                data,
+                _messageType,
+                null,
+                out result);
+            if (success)
+            {
+                _deserializeFormat = SerializationFormat.MessagePack;
+                return true;
+            }
+            success = ProtobufDeserializer.TryDeserialize(
+                data,
+                _messageType,
+                null,
+                out result);
+            if (!success)
+                _log.WriteWarning(nameof(TryDeserialize), null, $"Couldn't deserialize message with length {data.Length}");
+            return success;
         }
     }
 }

@@ -1,4 +1,5 @@
-﻿using Autofac;
+﻿using System;
+using Autofac;
 using Common.Log;
 using Lykke.Common;
 using Lykke.Job.BlobToBlobConverter.Common.Abstractions;
@@ -8,7 +9,6 @@ using Lykke.Job.BlobToBlobConverter.Core.Services;
 using Lykke.Job.BlobToBlobConverter.Services;
 using Lykke.Job.BlobToBlobConverter.Settings;
 using Lykke.Job.BlobToBlobConverter.PeriodicalHandlers;
-using System;
 
 namespace Lykke.Job.BlobToBlobConverter.Modules
 {
@@ -58,30 +58,28 @@ namespace Lykke.Job.BlobToBlobConverter.Modules
                 .WithParameter("blobConnectionString", _settings.OutputBlobConnString)
                 .WithParameter("rootContainer", _settings.InputContainer);
 
+            var messageMode = (MessageMode)Enum.Parse(typeof(MessageMode), _settings.MessageMode);
             builder.RegisterType<TypeRetriever>()
-                .As<ITypeRetriever>()
-                .SingleInstance();
+                .As<IMessageTypeResolver>()
+                .As<IProcessingTypeResolver>()
+                .SingleInstance()
+                .WithParameter("processingTypeName", _settings.ProcessingType)
+                .WithParameter("nugetPackageName", _settings.NugetPackage)
+                .WithParameter("messageMode", messageMode);
 
             builder.RegisterType<StructureBuilder>()
                 .As<ITypeInfo>()
                 .As<IStructureBuilder>()
                 .SingleInstance()
-                .WithParameter("processingType", _settings.ProcessingType)
-                .WithParameter("nugetPackageName", _settings.NugetPackage)
                 .WithParameter("instanceTag", _instanceTag)
                 .WithParameter("excludedPropertiesMap", _settings.ExcludedPropertiesMap)
                 .WithParameter("idPropertiesMap", _settings.IdPropertiesMap)
                 .WithParameter("relationPropertiesMap", _settings.RelationPropertiesMap);
 
-            var messageMode = (MessageMode)Enum.Parse(typeof(MessageMode), _settings.MessageMode);
-
             builder.RegisterType<MessageProcessor>()
                 .As<IMessageProcessor>()
                 .SingleInstance()
-                .WithParameter("processingType", _settings.ProcessingType)
-                .WithParameter("nugetPackageName", _settings.NugetPackage)
-                .WithParameter("skipCorrupted", _settings.SkipCorrupted ?? false)
-                .WithParameter("messageMode", messageMode);
+                .WithParameter("skipCorrupted", _settings.SkipCorrupted ?? false);
 
             builder.RegisterType<BlobProcessor>()
                 .As<IBlobProcessor>()
