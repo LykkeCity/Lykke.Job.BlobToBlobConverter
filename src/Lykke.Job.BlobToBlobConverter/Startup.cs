@@ -224,7 +224,7 @@ namespace Lykke.Job.BlobToBlobConverter
             azureStorageLogger.Start();
             aggregateLogger.AddLog(azureStorageLogger);
 
-            var logToSlack = LykkeLogToSlack.Create(slackService, "Bridges", LogLevel.Error | LogLevel.FatalError | LogLevel.Warning);
+            var logToSlack = LykkeLogToSlack.Create(slackService, "Bridges", LogLevel.Error | LogLevel.FatalError | LogLevel.Warning | LogLevel.Monitoring);
             aggregateLogger.AddLog(logToSlack);
 
             return aggregateLogger;
