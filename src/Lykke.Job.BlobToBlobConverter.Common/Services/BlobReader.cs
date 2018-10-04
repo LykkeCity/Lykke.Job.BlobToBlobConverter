@@ -21,6 +21,7 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
         private const int _maxUnprocessedPatternsCount = 50;
         private const int _blobBlockSize = 4 * 1024 * 1024; // 4 Mb
         private const int _maxBlobBlockSize = 100 * 1024 * 1024; // 100 Mb
+        private const int _maxAllowedSkippedBytesCount = 10;
         private const string _compressedKey = "compressed";
         private const string _newFormatKey = "NewFormat";
 
@@ -181,9 +182,10 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
                     foundCorrectChunk = TryDeserialize(chunk, out var obj);
                     if (foundCorrectChunk)
                     {
-                        if (j > 0)
+                        int skippedBytesCount = delimiterEndIndex - delimiterEndIndexes[0];
+                        if (j > 1 || j == 1 && skippedBytesCount > _maxAllowedSkippedBytesCount)
                             throw new InvalidOperationException(
-                                $"Couldn't process message(s). Skipped {delimiterEndIndex - delimiterEndIndexes[0]} bytes with {j} delimiters.");
+                                $"Couldn't process message(s). Skipped {skippedBytesCount} bytes with {j} delimiters.");
                         await _messageProcessor.ProcessMessageAsync(obj);
                         break;
                     }
