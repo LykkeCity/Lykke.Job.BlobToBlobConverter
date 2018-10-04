@@ -338,7 +338,7 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
             }
             catch (InvalidDataException ex)
             {
-                _log.WriteInfo(nameof(ReadAndProcessBlobAsync), null, ex.Message);
+                _log.WriteWarning(nameof(UnpackMessage), null, ex.Message);
                 return null;
             }
         }
