@@ -22,7 +22,7 @@
 
   <ItemGroup>
     <PackageReference Include="Lykke.Common.ApiLibrary" Version="1.10.2" />
-    <PackageReference Include="Lykke.Logs" Version="6.0.1" />
+    <PackageReference Include="Lykke.Logs" Version="7.0.0" />
     <PackageReference Include="Lykke.MonitoringServiceApiCaller" Version="1.7.0" />
     <PackageReference Include="Lykke.SettingsReader" Version="4.1.1" />
     <PackageReference Include="Lykke.SlackNotification.AzureQueue" Version="2.0.5" />

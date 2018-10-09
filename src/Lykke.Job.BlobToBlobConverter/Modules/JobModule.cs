@@ -50,7 +50,8 @@ namespace Lykke.Job.BlobToBlobConverter.Modules
                 .As<IBlobReader>()
                 .SingleInstance()
                 .WithParameter("container", _settings.InputContainer)
-                .WithParameter("blobConnectionString", _settings.InputBlobConnString);
+                .WithParameter("blobConnectionString", _settings.InputBlobConnString)
+                .WithParameter("skipCorrupted", _settings.SkipCorrupted ?? false);
 
             builder.RegisterType<BlobSaver>()
                 .As<IBlobSaver>()
@@ -78,8 +79,7 @@ namespace Lykke.Job.BlobToBlobConverter.Modules
 
             builder.RegisterType<MessageProcessor>()
                 .As<IMessageProcessor>()
-                .SingleInstance()
-                .WithParameter("skipCorrupted", _settings.SkipCorrupted ?? false);
+                .SingleInstance();
 
             builder.RegisterType<BlobProcessor>()
                 .As<IBlobProcessor>()

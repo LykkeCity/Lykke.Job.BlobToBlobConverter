@@ -18,7 +18,6 @@ namespace Lykke.Job.BlobToBlobConverter.Services
     {
         private const int _maxBatchCount = 1000000;
 
-        private readonly bool _skipCorrupted;
         private readonly ILog _log;
         private readonly ITypeInfo _typeInfo;
         private readonly IProcessingTypeResolver _processingTypeResolver;
@@ -29,12 +28,10 @@ namespace Lykke.Job.BlobToBlobConverter.Services
         private Func<string, List<string>, Task> _messagesHandler;
 
         public MessageProcessor(
-            bool skipCorrupted,
             IProcessingTypeResolver processingTypeResolver,
             ITypeInfo typeInfo,
             ILog log)
         {
-            _skipCorrupted = skipCorrupted;
             _processingTypeResolver = processingTypeResolver;
             _typeInfo = typeInfo;
             _log = log;
@@ -82,10 +79,7 @@ namespace Lykke.Job.BlobToBlobConverter.Services
             catch (Exception ex)
             {
                 _log.WriteError(nameof(ProcessMessageAsync), obj, ex);
-                if (_skipCorrupted)
-                    _log.WriteWarning(nameof(ProcessMessageAsync), obj, "Skipped corrupted message");
-                else
-                    throw;
+                throw;
             }
         }
 

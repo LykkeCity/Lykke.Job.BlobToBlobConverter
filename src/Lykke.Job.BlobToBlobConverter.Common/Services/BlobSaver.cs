@@ -138,17 +138,20 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
                     {
                         if (stream.Length + block.Length * 2 >= _maxBlockSize)
                         {
+                            writer.Flush();
                             await UploadBlockAsync(blob, blockIds, stream);
                             stream.Position = 0;
                             stream.SetLength(0);
                         }
 
                         writer.WriteLine(block);
-                        writer.Flush();
                     }
 
                     if (stream.Length > 0)
+                    {
+                        writer.Flush();
                         await UploadBlockAsync(blob, blockIds, stream);
+                    }
                 }
             }
         }

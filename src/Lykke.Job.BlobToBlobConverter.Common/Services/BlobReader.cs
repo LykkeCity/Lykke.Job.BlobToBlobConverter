@@ -33,7 +33,7 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
             MaximumExecutionTime = TimeSpan.FromMinutes(60),
             ServerTimeout = TimeSpan.FromMinutes(60)
         };
-
+        private readonly bool _skipCorrupted;
         private readonly IMessageProcessor _messageProcessor;
         private readonly ILog _log;
         private readonly byte[] _delimiterBytes = Encoding.UTF8.GetBytes("\r\n\r\n");
@@ -46,6 +46,7 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
         public BlobReader(
             string container,
             string blobConnectionString,
+            bool skipCorrupted,
             IMessageTypeResolver messageTypeResolver,
             IMessageProcessor messageProcessor,
             ILog log)
@@ -56,6 +57,7 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
             bool containerExists = _blobContainer.ExistsAsync().GetAwaiter().GetResult();
             if (!containerExists)
                 throw new InvalidOperationException($"Container {_container} doesn't exist!");
+            _skipCorrupted = skipCorrupted;
             _messageTypeResolver = messageTypeResolver;
             _messageProcessor = messageProcessor;
             _log = log;
@@ -184,8 +186,13 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
                     {
                         int skippedBytesCount = delimiterEndIndex - delimiterEndIndexes[0];
                         if (j > 1 || j == 1 && skippedBytesCount > _maxAllowedSkippedBytesCount)
-                            throw new InvalidOperationException(
-                                $"Couldn't process message(s). Skipped {skippedBytesCount} bytes with {j} delimiters.");
+                        {
+                            if (_skipCorrupted)
+                                _log.WriteWarning(nameof(ProcessBufferAsync), obj, "Skipped corrupted message");
+                            else
+                                throw new InvalidOperationException(
+                                    $"Couldn't process message(s). Skipped {skippedBytesCount} bytes with {j} delimiters.");
+                        }
                         await _messageProcessor.ProcessMessageAsync(obj);
                         break;
                     }
