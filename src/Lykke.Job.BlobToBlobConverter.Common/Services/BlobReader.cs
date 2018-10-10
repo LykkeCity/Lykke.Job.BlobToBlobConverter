@@ -188,10 +188,10 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
                         if (j > 1 || j == 1 && skippedBytesCount > _maxAllowedSkippedBytesCount)
                         {
                             if (_skipCorrupted)
-                                _log.WriteWarning(nameof(ProcessBufferAsync), obj, "Skipped corrupted message");
+                                _log.WriteWarning(nameof(ProcessBufferAsync), null, $"Skipped {skippedBytesCount} bytes with {j} delimiters.");
                             else
                                 throw new InvalidOperationException(
-                                    $"Couldn't process message(s). Skipped {skippedBytesCount} bytes with {j} delimiters.");
+                                    $"Couldn't process message(s). Found corrupted chunk - {skippedBytesCount} bytes with {j} delimiters.");
                         }
                         await _messageProcessor.ProcessMessageAsync(obj);
                         break;
