@@ -1,4 +1,6 @@
-﻿using Autofac;
+﻿using System;
+using System.Threading.Tasks;
+using Autofac;
 using Autofac.Extensions.DependencyInjection;
 using AzureStorage.Tables;
 using Common.Log;
@@ -7,20 +9,18 @@ using Lykke.Common.ApiLibrary.Middleware;
 using Lykke.Common.ApiLibrary.Swagger;
 using Lykke.Common.Api.Contract.Responses;
 using Lykke.Job.BlobToBlobConverter.Core.Services;
-using Lykke.Job.BlobToBlobConverter.Settings;
 using Lykke.Job.BlobToBlobConverter.Modules;
+using Lykke.Job.BlobToBlobConverter.Settings;
 using Lykke.Logs;
 using Lykke.Logs.Slack;
-using Lykke.SettingsReader;
 using Lykke.MonitoringServiceApiCaller;
+using Lykke.SettingsReader;
 using Lykke.SlackNotification.AzureQueue;
 using Microsoft.ApplicationInsights.Extensibility;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using System;
-using System.Threading.Tasks;
 
 namespace Lykke.Job.BlobToBlobConverter
 {

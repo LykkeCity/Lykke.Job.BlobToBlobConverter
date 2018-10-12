@@ -192,13 +192,14 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
                 if (oldTable == null)
                     return false;
 
-                if (table.Colums.Count != oldTable.Colums.Count)
+                var oldTableColumns = oldTable.Columns ?? oldTable.Colums;
+                if (table.Columns.Count != oldTableColumns.Count)
                     return false;
 
-                for (int i = 0; i < table.Colums.Count; ++i)
+                for (int i = 0; i < table.Columns.Count; ++i)
                 {
-                    if (table.Colums[i].ColumnName != oldTable.Colums[i].ColumnName
-                        || table.Colums[i].ColumnType != oldTable.Colums[i].ColumnType)
+                    if (table.Columns[i].ColumnName != oldTableColumns[i].ColumnName
+                        || table.Columns[i].ColumnType != oldTableColumns[i].ColumnType)
                         return false;
                 }
             }

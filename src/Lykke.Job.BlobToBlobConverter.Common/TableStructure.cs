@@ -9,5 +9,7 @@ namespace Lykke.Job.BlobToBlobConverter.Common
         public string AzureBlobFolder { get; set; }
 
         public List<ColumnInfo> Colums { get; set; }
+
+        public List<ColumnInfo> Columns { get; set; }
     }
 }

@@ -199,7 +199,7 @@ namespace Lykke.Job.BlobToBlobConverter.Services
                     ? (string.IsNullOrWhiteSpace(_instanceTag) ? typeName : $"{typeName}_{_instanceTag}")
                     : (string.IsNullOrWhiteSpace(_instanceTag) ? $"{parentTypeName}{typeName}" : $"{parentTypeName}{typeName}_{_instanceTag}"),
                 AzureBlobFolder = typeName.ToLower(),
-                Colums = new List<ColumnInfo>(),
+                Columns = new List<ColumnInfo>(),
             };
 
             var topLevelProperties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
@@ -230,7 +230,7 @@ namespace Lykke.Job.BlobToBlobConverter.Services
                             string genericTypeName = genericType.IsEnum ? typeof(string).Name : genericType.Name;
                             int ind = propertyType.Name.IndexOf('`');
                             var propertyTypeName = $"{propertyType.Name.Substring(0, ind + 1)}{genericTypeName}";
-                            collector.Colums.Add(
+                            collector.Columns.Add(
                                 new ColumnInfo
                                 {
                                     ColumnName = property.Name,
@@ -266,7 +266,7 @@ namespace Lykke.Job.BlobToBlobConverter.Services
                         }
                         if (property.Name == relationPropertyName)
                             relationProperty = property;
-                        collector.Colums.Add(
+                        collector.Columns.Add(
                             new ColumnInfo
                             {
                                 ColumnName = property.Name,
@@ -277,7 +277,7 @@ namespace Lykke.Job.BlobToBlobConverter.Services
                 }
             }
 
-            if (collector.Colums.Count > 0)
+            if (collector.Columns.Count > 0)
             {
                 if (parentType != type)
                 {
@@ -285,7 +285,7 @@ namespace Lykke.Job.BlobToBlobConverter.Services
                     {
                         var parentIdPropertyInChild = type.GetProperty(parentIdPropertyName);
                         if (parentIdPropertyInChild == null)
-                            collector.Colums.Insert(
+                            collector.Columns.Insert(
                                 0,
                                 new ColumnInfo
                                 {
@@ -305,7 +305,7 @@ namespace Lykke.Job.BlobToBlobConverter.Services
                     idPropertyName = parentType != null && parentType != type && PropertiesMap[parentType].OneChildrenProperties.Count > 1
                         ? idProperty.Name
                         : IdPropertyName;
-                    collector.Colums.Insert(
+                    collector.Columns.Insert(
                         0,
                         new ColumnInfo
                         {
