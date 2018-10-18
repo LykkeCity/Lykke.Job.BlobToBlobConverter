@@ -88,11 +88,13 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
             if (_messageType == null)
                 _messageType = await _messageTypeResolver.ResolveMessageTypeAsync();
 
+            _isNewFormat = null;
             var blob = _blobContainer.GetAppendBlobReference(blobName);
             await blob.FetchAttributesAsync();
             bool isBlobCompressed = false;
             if (blob.Metadata.ContainsKey(_compressedKey) && bool.TryParse(blob.Metadata[_compressedKey], out bool blobCompressed))
                 isBlobCompressed = blobCompressed;
+
             long blobSize = blob.Properties.Length;
             long blobPosition = 0;
             int arrayLength = _blobBlockSize;
