@@ -19,6 +19,7 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
 
         private bool _allBlobsReprocessingRequired;
         private string _lastBlob;
+        private bool _isInited = false;
 
         public BlobProcessor(
             IBlobReader blobReader,
@@ -36,21 +37,13 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
             _log = log;
             _instanceTag = instanceTag;
             _lastBlob = lastBlob;
-
-            if (_structureBuilder.IsDynamicStructure)
-            {
-                var tablesStructure = _blobSaver.ReadTablesStructureAsync().GetAwaiter().GetResult();
-                _allBlobsReprocessingRequired = _structureBuilder.IsAllBlobsReprocessingRequired(tablesStructure);
-            }
-            else
-            {
-                var tablesStructure = _structureBuilder.GetTablesStructure();
-                _allBlobsReprocessingRequired = _blobSaver.CreateOrUpdateTablesStructureAsync(tablesStructure).GetAwaiter().GetResult();
-            }
         }
 
         public async Task ProcessAsync()
         {
+            if (!_isInited)
+                await InitAsync();
+
             List<string> blobs;
             if (_allBlobsReprocessingRequired)
             {
@@ -97,6 +90,22 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
             }
             if (blobs.Count > 0)
                 _log.WriteInfo("BlobProcessor.ProcessAsync", _instanceTag, $"Processed {blobs.Count} blobs");
+        }
+
+        private async Task InitAsync()
+        {
+            if (_structureBuilder.IsDynamicStructure)
+            {
+                var tablesStructure = await _blobSaver.ReadTablesStructureAsync();
+                _allBlobsReprocessingRequired = _structureBuilder.IsAllBlobsReprocessingRequired(tablesStructure);
+            }
+            else
+            {
+                var tablesStructure = _structureBuilder.GetTablesStructure();
+                _allBlobsReprocessingRequired = await _blobSaver.CreateOrUpdateTablesStructureAsync(tablesStructure);
+            }
+
+            _isInited = true;
         }
     }
 }
