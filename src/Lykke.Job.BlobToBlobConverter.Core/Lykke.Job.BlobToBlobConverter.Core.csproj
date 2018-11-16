@@ -7,7 +7,7 @@
 
   <ItemGroup>
     <PackageReference Include="Autofac" Version="4.8.1" />
-    <PackageReference Include="Lykke.Common" Version="7.2.0" />
+    <PackageReference Include="Lykke.Common" Version="7.3.0" />
   </ItemGroup>
 
 </Project>
