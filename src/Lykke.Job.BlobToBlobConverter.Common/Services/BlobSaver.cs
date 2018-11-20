@@ -132,13 +132,12 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
 
             using (var stream = new MemoryStream())
             {
-                using (var writer = new StreamWriter(stream))
+                using (var writer = new StreamWriter(stream){AutoFlush = true})
                 {
                     foreach (var block in blocks)
                     {
                         if (stream.Length + block.Length * 2 >= _maxBlockSize)
                         {
-                            writer.Flush();
                             await UploadBlockAsync(blob, blockIds, stream);
                             stream.Position = 0;
                             stream.SetLength(0);
@@ -148,10 +147,7 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
                     }
 
                     if (stream.Length > 0)
-                    {
-                        writer.Flush();
                         await UploadBlockAsync(blob, blockIds, stream);
-                    }
                 }
             }
         }
