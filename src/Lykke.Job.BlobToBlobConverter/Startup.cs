@@ -132,6 +132,8 @@ namespace Lykke.Job.BlobToBlobConverter
         {
             try
             {
+                Log.WriteMonitor("", Program.EnvInfo, "Initializing");
+
                 // NOTE: Job not yet recieve and process IsAlive requests here
 
                 await ApplicationContainer.Resolve<IStartupManager>().StartAsync();
