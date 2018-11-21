@@ -53,7 +53,7 @@ namespace Lykke.Job.BlobToBlobConverter.Services
 
         public bool IsAllBlobsReprocessingRequired(TablesStructure currentStructure)
         {
-            return false;
+            return DateTime.UtcNow < new DateTime(2018, 11, 23, 0, 0, 0, DateTimeKind.Utc);
         }
 
         public TablesStructure GetTablesStructure()
