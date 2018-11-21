@@ -16,7 +16,7 @@ namespace Lykke.Job.BlobToBlobConverter.Services
 {
     public class MessageProcessor : IMessageProcessor
     {
-        private const int _maxBatchCount = 1000000;
+        private const int _maxBatchCount = 100000;
 
         private readonly ILog _log;
         private readonly ITypeInfo _typeInfo;

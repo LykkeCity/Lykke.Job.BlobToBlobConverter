@@ -20,7 +20,7 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
     {
         private const string _lastBlobFile = "lastblob.txt";
         private const string _tablesStructureFileName = "TableStructure.str2";
-        private const int _maxBlockSize = 100 * 1024 * 1024; // 100Mb
+        private const int _halfMaxBlockSize = 50 * 1024 * 1024; // 50Mb
 
         private readonly Encoding _blobEncoding = Encoding.UTF8;
         private readonly CloudBlobContainer _blobContainer;
@@ -136,7 +136,7 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
                 {
                     foreach (var block in blocks)
                     {
-                        if (stream.Length + block.Length * 2 >= _maxBlockSize)
+                        if (stream.Length + block.Length * 2 >= _halfMaxBlockSize)
                         {
                             await UploadBlockAsync(blob, blockIds, stream);
                             stream.Position = 0;
