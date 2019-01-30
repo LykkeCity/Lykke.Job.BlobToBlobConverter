@@ -16,7 +16,7 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Abstractions
 
         Task<string> GetLastSavedBlobAsync();
 
-        Task<bool> CreateOrUpdateTablesStructureAsync(TablesStructure tablesStructure);
+        Task<bool> CreateOrUpdateTablesStructureAsync(TablesStructure tablesStructure, bool compareWithExisting = false);
 
         Task<TablesStructure> ReadTablesStructureAsync();
     }

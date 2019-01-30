@@ -102,7 +102,7 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
             else
             {
                 var tablesStructure = _structureBuilder.GetTablesStructure();
-                _allBlobsReprocessingRequired = await _blobSaver.CreateOrUpdateTablesStructureAsync(tablesStructure);
+                _allBlobsReprocessingRequired = await _blobSaver.CreateOrUpdateTablesStructureAsync(tablesStructure, true);
             }
 
             _isInited = true;

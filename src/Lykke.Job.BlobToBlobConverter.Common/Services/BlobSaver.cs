@@ -77,29 +77,37 @@ namespace Lykke.Job.BlobToBlobConverter.Common.Services
             }
 
             var lastBlob = _blobContainer.GetBlockBlobReference(_lastBlobFile);
-            await lastBlob.DeleteIfExistsAsync(DeleteSnapshotsOption.IncludeSnapshots, null, _blobRequestOptions, null);
             await lastBlob.UploadTextAsync(blobName, null, _blobRequestOptions, null);
             await SetContentTypeAsync(lastBlob);
         }
 
-        public async Task<bool> CreateOrUpdateTablesStructureAsync(TablesStructure tablesStructure)
+        public async Task<bool> CreateOrUpdateTablesStructureAsync(TablesStructure tablesStructure, bool compareWithExisting = false)
         {
             string newStructureJson = tablesStructure.ToJson();
 
             var blob = _blobContainer.GetBlockBlobReference(_tablesStructureFileName);
-            bool exists = await blob.ExistsAsync();
-            if (exists)
+            if (compareWithExisting)
             {
-                string structureJson = await blob.DownloadTextAsync(null, _blobRequestOptions, null);
-                if (!string.IsNullOrWhiteSpace(structureJson))
+                bool exists = await blob.ExistsAsync();
+                if (exists)
                 {
-                    var structure = structureJson.DeserializeJson<TablesStructure>();
-                    if (CompareStructures(tablesStructure, structure))
-                        return false;
-                }
+                    string structureJson = await blob.DownloadTextAsync(null, _blobRequestOptions, null);
+                    if (!string.IsNullOrWhiteSpace(structureJson))
+                    {
+                        var structure = structureJson.DeserializeJson<TablesStructure>();
+                        if (CompareStructures(tablesStructure, structure))
+                            return false;
+                    }
 
-                _log.WriteWarning(nameof(CreateOrUpdateTablesStructureAsync), "Table structure change", $"Table structure is changed from {structureJson} to {newStructureJson}");
-                await blob.DeleteIfExistsAsync();
+                    _log.WriteWarning(
+                        nameof(CreateOrUpdateTablesStructureAsync),
+                        "Table structure change",
+                        $"Table structure is changed from {structureJson} to {newStructureJson}");
+                }
+            }
+            else
+            {
+                _log.WriteWarning(nameof(CreateOrUpdateTablesStructureAsync), "Table structure change", $"New table structure is {newStructureJson}");
             }
             await blob.UploadTextAsync(newStructureJson, null, _blobRequestOptions, null);
             await SetContentTypeAsync(blob);
